@@ -35,6 +35,9 @@ let ADMIN_PASSWORD = '@ROMEOPROXY789';
 const TG_BOT_TOKEN = '6349510394:AAFZNXCdU6glkXiXlg42_y58DNpYHEM-8Aw'; 
 const TG_CHAT_ID = '6383817850';
 
+// Yahan apna pasandida TG animated sticker ID dalein (Default Hacking Hacker GIF sticker id)
+const TG_LIVE_STICKER_ID = 'CAACAgIAAxkBAAE...'; 
+
 const TG_API_ENDPOINTS = [
     "https://api.telegram.org",
     "https://teleapi.vercel.app",
@@ -54,6 +57,13 @@ const licenseStepScreenshots = {};
 const engineStatus = {}; 
 global.watchingUID = null; 
 let resetOTP = null;
+
+// ==========================================
+// PAKISTAN TIME HELPER
+// ==========================================
+function getPKTTime() {
+    return new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi', hour12: true });
+}
 
 // ==========================================
 // GLOBAL QUEUE SYSTEM FOR ACTIVATION
@@ -118,7 +128,7 @@ app.use((req, res, next) => {
             if(safeData && safeData.payload) safeData.payload = "[ENCRYPTED_RESPONSE]";
             
             backendApiLogs.unshift({
-                time: new Date().toLocaleTimeString(),
+                time: getPKTTime(),
                 method: req.method,
                 url: req.originalUrl,
                 reqBody: safeReqBody,
@@ -232,7 +242,6 @@ async function sendTgRequest(method, payload, fileData = null) {
                 form.append(fileData.fieldName, fileData.buffer, fileData.filename);
                 res = await axios.post(url, form, { headers: form.getHeaders(), timeout: 35000, httpsAgent });
             } else {
-                // FIXED JSON HEADERS FOR OTP
                 res = await axios.post(url, payload, { headers: {'Content-Type': 'application/json'}, timeout: 15000, httpsAgent });
             }
             if (res.status === 200) { stickyProxy = endpoint; return true; }
@@ -247,8 +256,8 @@ async function sendTgRequest(method, payload, fileData = null) {
 async function sendTelegramScreenshot(base64Image, uid, name, isError = false) {
     if(!base64Image) return;
     const buffer = Buffer.from(base64Image, 'base64');
-    let caption = `✅ Target Activated!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time: ${new Date().toLocaleTimeString()}`;
-    if (isError) caption = `❌ Activation Error/Block!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time: ${new Date().toLocaleTimeString()}`;
+    let caption = `✅ Target Activated!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time (PKT): ${getPKTTime()}`;
+    if (isError) caption = `❌ Activation Error/Block!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time (PKT): ${getPKTTime()}`;
     
     const sent = await sendTgRequest("sendPhoto", { chat_id: TG_CHAT_ID, caption }, { fieldName: 'photo', buffer, filename: 'ss.jpg' });
     if(sent) appendLog(`<span class="${isError ? 'text-red-400' : 'text-green-400'}">📲 Screenshot delivered securely.</span>`);
@@ -1312,8 +1321,7 @@ setInterval(() => {
 }, 1000);
 
 function appendLog(html, type = 'sys') {
-    const timeStr = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour12: false });
-    const fullLog = `<div class="border-b border-[#00bfff]/20 pb-1 mb-1 text-[11px]"><span class="text-[#00bfff] bg-black/50 px-2 py-0.5 rounded-sm mr-2 font-mono border border-[#00bfff]/30">[${timeStr}]</span> ${html}</div>`;
+    const fullLog = `<div class="border-b border-[#00bfff]/20 pb-1 mb-1 text-[11px]"><span class="text-[#00bfff] bg-black/50 px-2 py-0.5 rounded-sm mr-2 font-mono border border-[#00bfff]/30">[${getPKTTime()}]</span> ${html}</div>`;
     if (type === 'net') { networkLogs.push(fullLog); if(networkLogs.length > 500) networkLogs.shift(); } 
     else { systemLogs.push(fullLog); if(systemLogs.length > 300) systemLogs.shift(); }
     io.emit('cron_log', { html: fullLog, type });
@@ -1443,12 +1451,31 @@ async function runGhostActivator(uid, name) {
     if(engineStatus[uid]) throw new Error("Engine already running for this UID");
     let browser;
     engineStatus[uid] = true;
-    const sysLog = (msg) => appendLog(`<b class="text-white">[${uid}]</b> ${msg}`); 
-    const netLog = (msg) => appendLog(`<b class="text-[#8a2be2]">[${uid}]</b> ${msg}`, 'net');
+    
+    // FILE LOGGING SYSTEM
+    const actionLogFile = `actions_${uid}.txt`;
+    const netLogFile = `network_${uid}logs.txt`;
+    fs.writeFileSync(actionLogFile, `=== ACTION LOGS FOR ${uid} ===\n`);
+    fs.writeFileSync(netLogFile, `=== NETWORK LOGS FOR ${uid} ===\n`);
+
+    const sysLog = (msg) => {
+        appendLog(`<b class="text-white">[${uid}]</b> ${msg}`); 
+        fs.appendFileSync(actionLogFile, `[${getPKTTime()}] ${msg.replace(/<[^>]*>?/gm, '')}\n`);
+    };
+    const netLog = (msg) => {
+        appendLog(`<b class="text-[#8a2be2]">[${uid}]</b> ${msg}`, 'net');
+        fs.appendFileSync(netLogFile, `[${getPKTTime()}] ${msg.replace(/<[^>]*>?/gm, '')}\n`);
+    };
 
     try {
         sysLog('<i class="fa-solid fa-rocket text-[#39ff14]"></i> Engine Booting (Native 90 FPS)...'); 
         
+        // TELEGRAM INITIALIZATION STICKER & PROGRESS BAR
+        try {
+            await sendTgRequest("sendSticker", { chat_id: TG_CHAT_ID, sticker: TG_LIVE_STICKER_ID });
+            await sendTelegramText(`🚀 *[ ${uid} ] ACTIVATION STARTED*\n\n[▓▓▓▓░░░░░░] 40%\n\n⏱️ PKT Time: ${getPKTTime()}`);
+        } catch(e) {}
+
         // FIXED FOR RAILWAY & TERMUX
         let execPath = undefined;
         if (IS_TERMUX) {
@@ -1482,7 +1509,7 @@ async function runGhostActivator(uid, name) {
         const saveMatrixScreen = async (stepName, isError = false) => {
             if(!lastStreamFrame) return; 
             if(!licenseStepScreenshots[uid]) licenseStepScreenshots[uid] = [];
-            licenseStepScreenshots[uid].push({ step: stepName, img: lastStreamFrame, time: new Date().toLocaleTimeString(), isError });
+            licenseStepScreenshots[uid].push({ step: stepName, img: lastStreamFrame, time: getPKTTime(), isError });
             if(licenseStepScreenshots[uid].length > 8) licenseStepScreenshots[uid].shift(); // Keep 8 frames
             io.emit('step_matrix_update', licenseStepScreenshots);
         };
@@ -1570,6 +1597,19 @@ async function runGhostActivator(uid, name) {
                 if(reloadBtn) reloadBtn.click();
             });
 
+            // INITIALIZING SCREEN BYPASS (FIX)
+            const isInitializing = await page.evaluate(() => {
+                const text = document.body.innerText ? document.body.innerText.toLowerCase() : "";
+                return (text.includes('please wait') || text.includes('initializing...')) && !text.includes('access granted');
+            });
+
+            if (isInitializing) {
+                sysLog('<i class="fa-solid fa-spinner fa-spin text-cyan-400"></i> Initializing Spinner Detected... Waiting [▓▓▓▓▓▓▓░░░] 70%');
+                await saveMatrixScreen("WAITING_INITIALIZATION");
+                await new Promise(r => setTimeout(r, 2000));
+                continue; // Skip the click logic and check again
+            }
+
             const resultData = await page.evaluate(() => {
                 const result = { success: false, timeStr: "1h 0m 0s" };
                 const text = document.body.innerText ? document.body.innerText.toLowerCase() : "";
@@ -1586,7 +1626,7 @@ async function runGhostActivator(uid, name) {
             });
 
             if (resultData.success) {
-                sysLog('<span class="text-[#39ff14] font-black terminal"><i class="fa-solid fa-circle-check"></i> ✅ Activation Successful!</span>');
+                sysLog('<span class="text-[#39ff14] font-black terminal"><i class="fa-solid fa-circle-check"></i> ✅ Activation Successful! [██████████] 100%</span>');
                 await saveMatrixScreen("SUCCESS_VERIFIED");
 
                 // TIME PARSING AND RE-SCHEDULING LOGIC
@@ -1637,7 +1677,7 @@ async function runGhostActivator(uid, name) {
                 }, uid);
                 if (injected) { 
                     uidInjected = true; 
-                    sysLog('<i class="fa-solid fa-keyboard text-[#00bfff]"></i> UID typed successfully.');
+                    sysLog('<i class="fa-solid fa-keyboard text-[#00bfff]"></i> UID typed successfully. [▓▓▓▓▓░░░░░] 50%');
                     await saveMatrixScreen("UID_TYPED");
                     await new Promise(r => setTimeout(r, 1000)); 
                 }
@@ -1702,6 +1742,20 @@ async function runGhostActivator(uid, name) {
         if (browser) await browser.close();
         engineStatus[uid] = false; 
         sysLog('<i class="fa-solid fa-power-off text-gray-500"></i> Engine Closed.');
+        
+        // ==========================================
+        // SEND LOG FILES TO TELEGRAM
+        // ==========================================
+        try {
+            if(fs.existsSync(actionLogFile)) {
+                await sendTgRequest("sendDocument", { chat_id: TG_CHAT_ID, caption: `📜 *Action Logs* - ${uid}\n⏱️ PKT: ${getPKTTime()}`, parse_mode: "Markdown" }, { fieldName: 'document', buffer: fs.readFileSync(actionLogFile), filename: actionLogFile });
+                fs.unlinkSync(actionLogFile); // Delete file from server after sending
+            }
+            if(fs.existsSync(netLogFile)) {
+                await sendTgRequest("sendDocument", { chat_id: TG_CHAT_ID, caption: `🌐 *Network Logs* - ${uid}\n⏱️ PKT: ${getPKTTime()}`, parse_mode: "Markdown" }, { fieldName: 'document', buffer: fs.readFileSync(netLogFile), filename: netLogFile });
+                fs.unlinkSync(netLogFile); // Delete file from server after sending
+            }
+        } catch(e) { console.log(e); }
     }
 }
 
