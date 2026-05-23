@@ -1,8 +1,6 @@
 FROM node:18-slim
 
 # Install latest chrome dev package and fonts to support major charsets (Chinese, Japanese, Arabic, Hebrew, Thai and a few others)
-# Note: this installs the necessary libs to make the bundled version of Chromium that Puppeteer
-# installs, work.
 RUN apt-get update \
     && apt-get install -y wget gnupg \
     && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
@@ -14,7 +12,15 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY package*.json ./
+
+# ==========================================
+# FIX: SYSTEM ENVIRONMENT VARIABLES
+# ==========================================
+# Puppeteer ko bata rahe hain ke apni default downloading skip kare
 ENV PUPPETEER_SKIP_DOWNLOAD=true
+# Puppeteer ko installed Chrome ka path de rahe hain
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
 RUN npm install
 COPY . .
 
