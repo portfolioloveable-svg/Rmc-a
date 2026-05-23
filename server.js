@@ -1,0 +1,1705 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const { createClient } = require('@supabase/supabase-js');
+const axios = require('axios');
+const FormData = require('form-data');
+const cookieSession = require('cookie-session');
+const https = require('https');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const fs = require('fs'); 
+
+puppeteer.use(StealthPlugin());
+
+// ==========================================
+// HOST ENVIRONMENT DETECTION (NEW)
+// ==========================================
+const IS_RAILWAY = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID ? true : false;
+const IS_TERMUX = process.env.PREFIX && process.env.PREFIX.includes('com.termux') ? true : false;
+const HOST_ENV = IS_RAILWAY ? 'Railway' : (IS_TERMUX ? 'Termux' : 'Local/Other');
+console.log(`[System Engine] Running on Host: ${HOST_ENV}`);
+
+// ==========================================
+// CONFIGURATIONS
+// ==========================================
+const SUPABASE_URL = 'https://nebwfonyhfgxnfkiisvs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lYndmb255aGZneG5ma2lpc3ZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzNjc0MjMsImV4cCI6MjA5MDk0MzQyM30.me-P_mhC3droVGrHSlD_G3h9-ZgGgR3hy8VyDLFTp58';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let ADMIN_PASSWORD = '@ROMEOPROXY789';
+
+// TELEGRAM CONFIGURATION
+const TG_BOT_TOKEN = '6349510394:AAFZNXCdU6glkXiXlg42_y58DNpYHEM-8Aw'; 
+const TG_CHAT_ID = '6383817850';
+
+const TG_API_ENDPOINTS = [
+    "https://api.telegram.org",
+    "https://teleapi.vercel.app",
+    "https://tg-proxy.romania.workers.dev", 
+    "https://api.telegram.org.bot.vercel.app"
+];
+let stickyProxy = null; 
+
+// HTTPS Agent
+const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
+
+const activeTimers = {}; 
+const lastActivationData = {}; 
+const systemLogs = []; 
+const networkLogs = [];
+const licenseStepScreenshots = {}; 
+const engineStatus = {}; 
+global.watchingUID = null; 
+let resetOTP = null;
+
+// ==========================================
+// GLOBAL QUEUE SYSTEM FOR ACTIVATION
+// ==========================================
+const executionQueue = [];
+let currentRunningUid = null;
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+
+app.set('trust proxy', true); 
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cookieSession({
+    name: 'romeo_auth',
+    keys: ['super_secret_uchiha_key_2026'],
+    maxAge: 24 * 60 * 60 * 1000 
+}));
+
+// ==========================================
+// DYNAMIC CORS SYSTEM (NEW)
+// ==========================================
+let ALLOW_ALL_CORS = true;
+const CORS_FILE = 'cors_urls.txt';
+if(!fs.existsSync(CORS_FILE)) fs.writeFileSync(CORS_FILE, '', 'utf8');
+
+app.use((req, res, next) => {
+    if (ALLOW_ALL_CORS) {
+        res.header('Access-Control-Allow-Origin', '*');
+    } else {
+        const allowedOrigins = fs.readFileSync(CORS_FILE, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+        const origin = req.headers.origin;
+        if (allowedOrigins.includes(origin)) {
+            res.header('Access-Control-Allow-Origin', origin);
+        }
+    }
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+
+// ==========================================
+// API REQUEST/RESPONSE LOGGER (NEW)
+// ==========================================
+const backendApiLogs = [];
+app.use((req, res, next) => {
+    const isApiRoute = req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/ping') || req.originalUrl.startsWith('/step') || req.originalUrl.startsWith('/ch_uid');
+    
+    if (isApiRoute && !req.originalUrl.includes('api_logs_fetch')) {
+        const start = Date.now();
+        const oldJson = res.json;
+        res.json = function(data) {
+            const duration = Date.now() - start;
+            let safeReqBody = req.body ? {...req.body} : {};
+            if(safeReqBody.password) safeReqBody.password = "***";
+            if(safeReqBody.payload) safeReqBody.payload = "[ENCRYPTED_PAYLOAD]";
+            
+            let safeData = typeof data === 'object' ? {...data} : data;
+            if(safeData && safeData.payload) safeData.payload = "[ENCRYPTED_RESPONSE]";
+            
+            backendApiLogs.unshift({
+                time: new Date().toLocaleTimeString(),
+                method: req.method,
+                url: req.originalUrl,
+                reqBody: safeReqBody,
+                resBody: safeData,
+                status: res.statusCode,
+                timeTaken: duration + 'ms'
+            });
+            
+            if(backendApiLogs.length > 200) backendApiLogs.pop();
+            return oldJson.call(this, data);
+        };
+    }
+    next();
+});
+
+process.on('uncaughtException', (err) => console.log(`[Shield] ${err.message}`));
+process.on('unhandledRejection', () => console.log(`[Shield] Rejection Prevented.`));
+
+setTimeout(async () => {
+    try {
+        const { data } = await supabase.from('settings').select('*').in('key', ['admin_pass']);
+        if(data) data.forEach(d => { if(d.key === 'admin_pass') ADMIN_PASSWORD = d.value; });
+    } catch(e) {}
+}, 2000);
+
+// ==========================================
+// AES-256-CBC ENCRYPTION SYSTEM (Original)
+// ==========================================
+const ENCRYPTION_PASSPHRASE = "ROMEO_KING_2026"; 
+const ENCRYPTION_KEY = crypto.createHash('sha256').update(ENCRYPTION_PASSPHRASE).digest();
+
+function encryptData(dataObj, customKey = ENCRYPTION_KEY) {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', customKey, iv);
+    let encrypted = cipher.update(JSON.stringify(dataObj), 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptData(encryptedStr, customKey = ENCRYPTION_KEY) {
+    try {
+        const parts = encryptedStr.split(':');
+        const iv = Buffer.from(parts.shift(), 'hex');
+        const encryptedText = Buffer.from(parts.join(':'), 'hex');
+        const decipher = crypto.createDecipheriv('aes-256-cbc', customKey, iv);
+        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return JSON.parse(decrypted);
+    } catch (e) { return null; }
+}
+
+const secureMiddleware = (req, res, next) => {
+    if (req.body && req.body.payload) {
+        const decrypted = decryptData(req.body.payload);
+        if (!decrypted) return res.status(400).json({ error: "Invalid Encryption Payload" });
+        req.body = decrypted;
+    }
+    const originalJson = res.json;
+    res.json = function(data) {
+        if(data.error || data.raw) return originalJson.call(this, data);
+        return originalJson.call(this, { payload: encryptData(data) });
+    };
+    next();
+};
+
+// ==========================================
+// STRICT AES ENCRYPTION (FOR NEW ENDPOINTS)
+// ==========================================
+const STRICT_KEY = crypto.createHash('sha256').update('@ROmEo<890>').digest();
+
+const strictSecureMiddleware = (req, res, next) => {
+    const ua = req.headers['user-agent'] || '';
+    if (ua.includes('HeadlessChrome') || ua.includes('Puppeteer')) return res.status(403).json({ error: "Bots Blocked" });
+
+    if (req.body && req.body.payload) {
+        const decrypted = decryptData(req.body.payload, STRICT_KEY);
+        if (!decrypted) return res.status(400).json({ error: "Strict Decryption Failed." });
+        
+        const strBody = JSON.stringify(decrypted);
+        if(/(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION)\b)|(--\s*')/gi.test(strBody)) {
+            return res.status(403).json({ error: "SQL Injection Blocked." });
+        }
+        req.body = decrypted;
+    } else if(req.method === 'POST') {
+        return res.status(400).json({ error: "Plaintext body completely denied." });
+    }
+
+    const originalJson = res.json;
+    res.json = function(data) {
+        if(data.error || data.raw) return originalJson.call(this, data);
+        return originalJson.call(this, { raw: true, payload: encryptData(data, STRICT_KEY) });
+    };
+    next();
+};
+
+
+// ==========================================
+// TELEGRAM CORE
+// ==========================================
+async function sendTgRequest(method, payload, fileData = null) {
+    let endpointsToTry = stickyProxy ? [stickyProxy, ...TG_API_ENDPOINTS.filter(e => e !== stickyProxy)] : TG_API_ENDPOINTS;
+    let lastErr = "";
+
+    for (let endpoint of endpointsToTry) {
+        try {
+            let url = `${endpoint}/bot${TG_BOT_TOKEN}/${method}`;
+            let res;
+            if (fileData) {
+                const form = new FormData();
+                if (payload) for (let k in payload) form.append(k, payload[k]);
+                form.append(fileData.fieldName, fileData.buffer, fileData.filename);
+                res = await axios.post(url, form, { headers: form.getHeaders(), timeout: 35000, httpsAgent });
+            } else {
+                // FIXED JSON HEADERS FOR OTP
+                res = await axios.post(url, payload, { headers: {'Content-Type': 'application/json'}, timeout: 15000, httpsAgent });
+            }
+            if (res.status === 200) { stickyProxy = endpoint; return true; }
+        } catch (e) {
+            lastErr = e.code === 'ECONNRESET' ? 'Connection Reset' : (e.response ? `HTTP ${e.response.status}` : e.message);
+        }
+    }
+    appendLog(`<span class="text-red-400 font-bold">⚠️ TG Communications Failed: ${lastErr}</span>`);
+    return false;
+}
+
+async function sendTelegramScreenshot(base64Image, uid, name, isError = false) {
+    if(!base64Image) return;
+    const buffer = Buffer.from(base64Image, 'base64');
+    let caption = `✅ Target Activated!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time: ${new Date().toLocaleTimeString()}`;
+    if (isError) caption = `❌ Activation Error/Block!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time: ${new Date().toLocaleTimeString()}`;
+    
+    const sent = await sendTgRequest("sendPhoto", { chat_id: TG_CHAT_ID, caption }, { fieldName: 'photo', buffer, filename: 'ss.jpg' });
+    if(sent) appendLog(`<span class="${isError ? 'text-red-400' : 'text-blue-400'}">📲 Screenshot delivered securely.</span>`);
+}
+
+async function sendTelegramText(text) {
+    await sendTgRequest("sendMessage", { chat_id: TG_CHAT_ID, text, parse_mode: "Markdown" });
+}
+
+// ==========================================
+// VERCEL EXTERNAL API ROUTES (Original)
+// ==========================================
+app.post('/api/auth/register', secureMiddleware, async (req, res) => {
+    const { full_name, email, password, uid } = req.body;
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const { data: user, error } = await supabase.from('romeo_users').insert([{ full_name, email, password: hashedPassword }]).select().single();
+    if (error) return res.json({ success: false, msg: "Email already exists!" });
+
+    const { data: sub } = await supabase.from('romeo_subs').insert([{ user_id: user.id, uid: uid || null, plan_type: 'free' }]).select().single();
+    res.json({ success: true, user_id: user.id, role: user.role });
+});
+
+app.post('/api/auth/login', secureMiddleware, async (req, res) => {
+    const { email, password } = req.body;
+    const { data: user } = await supabase.from('romeo_users').select('*').eq('email', email).single();
+    if (!user) return res.json({ success: false, msg: "User not found!" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.json({ success: false, msg: "Invalid Credentials!" });
+
+    const { data: sub } = await supabase.from('romeo_subs').select('*').eq('user_id', user.id).single();
+    res.json({ success: true, user_id: user.id, role: user.role, plan: sub.plan_type, uid: sub.uid, expires_at: sub.expires_at });
+});
+
+app.post('/api/user/update_uid', secureMiddleware, async (req, res) => {
+    const { user_id, new_uid } = req.body;
+    const { data: sub } = await supabase.from('romeo_subs').update({ uid: new_uid }).eq('user_id', user_id).select().single();
+    
+    if(sub.plan_type !== 'free') {
+        for (let oldUid in activeTimers) {
+            if(activeTimers[oldUid].isSub && activeTimers[oldUid].user_id === user_id) {
+                clearTimeout(activeTimers[oldUid].timer);
+                delete activeTimers[oldUid];
+            }
+        }
+        startPremiumCycle(sub.user_id, new_uid, "Premium Pro", sub.expires_at);
+    }
+    res.json({ success: true, msg: "UID Updated Successfully!" });
+});
+
+app.post('/api/engine/manual_start', secureMiddleware, async (req, res) => {
+    const { user_id, uid } = req.body;
+    const { data: sub } = await supabase.from('romeo_subs').select('*, romeo_users(full_name)').eq('user_id', user_id).single();
+    if (sub.plan_type !== 'free') return res.json({ success: false, msg: "Pro users auto-activate!" });
+    
+    if(!executionQueue.includes(uid)) executionQueue.push(uid);
+    processQueue();
+    res.json({ success: true, msg: "Manual Cycle Started!" });
+});
+
+app.post('/api/admin/upgrade_sub', secureMiddleware, async (req, res) => {
+    const { admin_id, user_id, plan_type, days } = req.body; 
+    const { data: admin } = await supabase.from('romeo_users').select('role').eq('id', admin_id).single();
+    if(admin.role !== 'admin') return res.json({ success: false, msg: "Unauthorized" });
+
+    const expires_at = new Date();
+    expires_at.setDate(expires_at.getDate() + parseInt(days));
+
+    const { data: sub } = await supabase.from('romeo_subs').update({ plan_type, expires_at: expires_at.toISOString() }).eq('user_id', user_id).select().single();
+    if(sub.uid) startPremiumCycle(sub.user_id, sub.uid, "Premium User", sub.expires_at);
+    res.json({ success: true, msg: "User Upgraded Successfully!" });
+});
+
+// ==========================================
+// ENGINE QUEUE PROCESSOR
+// ==========================================
+async function processQueue() {
+    if(currentRunningUid || executionQueue.length === 0) return;
+    currentRunningUid = executionQueue.shift();
+    try {
+        let name = "Website User";
+        if (activeTimers[currentRunningUid]) name = activeTimers[currentRunningUid].name;
+        await executeEngineWithRetry(currentRunningUid, name);
+    } finally {
+        currentRunningUid = null;
+        processQueue(); // Call next in queue
+    }
+}
+
+// ==========================================
+// NEW STRICT API ENDPOINTS (Website Client)
+// ==========================================
+app.post('/ping', strictSecureMiddleware, async (req, res) => {
+    try {
+        const { license_key, device_fingerprint } = req.body;
+        const clientIp = req.ip || req.connection.remoteAddress;
+
+        const { data: license } = await supabase.from('licenses').select('*').eq('license_key', license_key).single();
+        if (!license) return res.json({ valid: false, msg: "License key is invalid" });
+
+        if (new Date(license.expires_at).getTime() < Date.now()) {
+            return res.json({ valid: false, msg: "License timeline has expired" });
+        }
+
+        if (license.device_fingerprint && license.device_fingerprint !== device_fingerprint) {
+            return res.json({ valid: false, msg: "License key is locked to another device!" });
+        }
+
+        if (!license.device_fingerprint) {
+            await supabase.from('licenses').update({ device_fingerprint, ip_address: clientIp }).eq('license_key', license_key);
+        } else if (license.ip_address !== clientIp) {
+            await supabase.from('licenses').update({ ip_address: clientIp }).eq('license_key', license_key);
+        }
+
+        const remainingMs = new Date(license.expires_at).getTime() - Date.now();
+        return res.json({ valid: true, plan_type: license.plan_type, allowed_uids: license.allowed_uids, uids: license.uids, time_remaining: remainingMs });
+    } catch(e) { res.status(500).json({ error: "Ping Processing Error" }) }
+});
+
+app.post('/ch_uid', strictSecureMiddleware, async (req, res) => {
+    try {
+        const { license_key, device_fingerprint, old_uid, new_uid } = req.body;
+        const { data: license } = await supabase.from('licenses').select('*').eq('license_key', license_key).single();
+
+        if (!license || license.device_fingerprint !== device_fingerprint) {
+            return res.json({ success: false, msg: "Device/Key Mismatch Unauthorized" });
+        }
+
+        let updatedUids = [...license.uids];
+        const idx = updatedUids.indexOf(old_uid);
+        if (idx > -1) updatedUids[idx] = new_uid;
+        else if (updatedUids.length < license.allowed_uids) updatedUids.push(new_uid);
+        else return res.json({ success: false, msg: "Super User limit reached" });
+
+        await supabase.from('licenses').update({ uids: updatedUids }).eq('license_key', license_key);
+        
+        if (activeTimers[old_uid]) { clearTimeout(activeTimers[old_uid].timer); delete activeTimers[old_uid]; }
+        startPremiumCycle(license_key, new_uid, license.plan_type, license.expires_at, true); 
+        
+        return res.json({ success: true, msg: "UID Swapped Successfully" });
+    } catch(e) { res.status(500).json({ error: "UID Change Processing Error" }) }
+});
+
+// Front-End Status Route Check (For Free/Premium Time display)
+app.post('/api/uid_status', strictSecureMiddleware, async (req, res) => {
+    try {
+        const { uid } = req.body;
+        if(activeTimers[uid]) {
+            if(activeTimers[uid].isSub) {
+                const diff = activeTimers[uid].expires_at - Date.now();
+                return res.json({ active: true, plan: "Premium", time_left: diff });
+            } else {
+                const totalAllowed = 3 * 60 * 60 * 1000;
+                const used = activeTimers[uid].totalTime || 0;
+                return res.json({ active: true, plan: "Free User", time_left: (totalAllowed - used) });
+            }
+        }
+        return res.json({ active: false });
+    } catch(e) { res.status(500).json({ error: "Status Error" }) }
+});
+
+['/step1', '/step2', '/step3', '/step4', '/step5'].forEach((path, idx) => {
+    app.post(path, strictSecureMiddleware, async (req, res) => {
+        try {
+            const { uid, cookies_valid } = req.body;
+            if(!cookies_valid) return res.json({ success: false, msg: "Cookies/Headers verification failed." });
+            
+            if (path === '/step1') {
+                const { data: freeUser } = await supabase.from('free_users_track').select('*').eq('uid', uid).single();
+                if (freeUser) {
+                    if (freeUser.activation_count >= 2) return res.json({ success: false, msg: "Free quota reached. Purchase Premium." });
+                    await supabase.from('free_users_track').update({ activation_count: freeUser.activation_count + 1, last_activated: new Date().toISOString() }).eq('uid', uid);
+                } else {
+                    await supabase.from('free_users_track').insert([{ uid, activation_count: 1, last_activated: new Date().toISOString() }]);
+                }
+
+                // QUEUE LOGIC & EARLY ENGINE TRIGGER (STEP 1)
+                if (currentRunningUid === uid || engineStatus[uid]) {
+                    return res.json({ success: true, step: idx + 2, msg: "Engine already running for you." });
+                }
+                
+                if (currentRunningUid && currentRunningUid !== uid) {
+                    if(!executionQueue.includes(uid)) executionQueue.push(uid);
+                    const pos = executionQueue.indexOf(uid) + 1;
+                    return res.json({ success: false, waiting: true, msg: `System Busy! Target currently active. You are #${pos} in queue. Please wait.` });
+                }
+                
+                if(!executionQueue.includes(uid)) {
+                    executionQueue.push(uid);
+                    processQueue();
+                }
+            }
+
+            return res.json({ success: true, step: idx + 2, msg: "Engine Sequence processing." });
+        } catch(e) { res.status(500).json({ error: "Step Processor Failed" }) }
+    });
+});
+
+// ==========================================
+// STRICT SESSION DESTRUCTION ROUTE
+// ==========================================
+app.post('/api/auth/destroy', (req, res) => {
+    req.session = null;
+    res.json({ success: true });
+});
+
+// ==========================================
+// AUTO SUBSCRIPTION LOOP SYSTEM
+// ==========================================
+function startPremiumCycle(user_id_or_key, uid, name, expires_at, isNewLicenseSys = false) {
+    if(!uid) return;
+    const expiryDate = new Date(expires_at).getTime();
+    if (Date.now() > expiryDate) {
+        if (activeTimers[uid]) delete activeTimers[uid];
+        return;
+    }
+    if (activeTimers[uid]) clearTimeout(activeTimers[uid].timer);
+    activeTimers[uid] = { isSub: true, user_id: user_id_or_key, name, expires_at: expiryDate, timer: null, autoActivate: true, intervalMins: 40, nextRun: Date.now(), isNewLicenseSys };
+    
+    if(!executionQueue.includes(uid)) executionQueue.push(uid);
+    processQueue();
+}
+
+// executePremiumLoop shifted logic into executeEngineWithRetry scheduleNextRun callback
+
+// ==========================================
+// PREMIUM UI, CUSTOM MODALS & FIXED GSAP (ORIGINAL)
+// ==========================================
+const uiHead = `
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <style>
+        :root { --bg-color: #060208; --text-color: #ffffff; --glass-bg: rgba(20, 10, 25, 0.45); --panel-glow: rgba(255, 107, 0, 0.15); --input-bg: rgba(255, 255, 255, 0.05); --input-border: rgba(255, 255, 255, 0.1); }
+        body.light-mode { --bg-color: #f4f4f8; --text-color: #1a1a24; --glass-bg: rgba(255, 255, 255, 0.95); --panel-glow: rgba(255, 0, 127, 0.15); --input-bg: rgba(0, 0, 0, 0.03); --input-border: rgba(0, 0, 0, 0.1); }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Outfit', sans-serif; overflow-x: hidden; transition: background 0.4s, color 0.4s; }
+        
+        .orb { position: fixed; border-radius: 50%; filter: blur(90px); opacity: 0.5; z-index: -1; pointer-events: none; }
+        .orb-purple { width: 50vw; height: 50vw; background: #8a2be2; top: -10%; left: -10%; }
+        .orb-orange { width: 40vw; height: 40vw; background: #ff6b00; bottom: -10%; right: -10%; }
+        
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid var(--input-border); box-shadow: 0 15px 40px var(--panel-glow), inset 0 0 15px rgba(255,255,255,0.02); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .glass-panel:hover { box-shadow: 0 20px 50px rgba(255, 107, 0, 0.25); }
+        
+        .text-gradient { background: linear-gradient(to right, #ff6b00, #ff007f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .terminal { font-family: 'Space Grotesk', monospace; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #ff007f; border-radius: 10px; }
+        
+        input, select { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-color); transition: 0.3s; }
+        input:focus, select:focus { border-color: #ff6b00; outline: none; box-shadow: 0 0 20px rgba(255,107,0,0.4); }
+        
+        .menu-open { transform: translateX(0) scale(1) !important; opacity: 1 !important; pointer-events: auto !important; }
+        .btn-hover { transition: all 0.3s; }
+        .btn-hover:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(255, 0, 127, 0.5); }
+    </style>
+    <script>
+        // NAVIGATION FIXED: Removed beforeunload destroy session that caused refresh bug.
+        document.addEventListener("DOMContentLoaded", () => {
+            gsap.registerPlugin(ScrollTrigger);
+            gsap.to(".orb-purple", { x: 100, y: 50, duration: 8, repeat: -1, yoyo: true, ease: "sine.inOut" });
+            gsap.to(".orb-orange", { x: -100, y: -50, duration: 6, repeat: -1, yoyo: true, ease: "sine.inOut" });
+            gsap.from(".animate-box", { y: 40, opacity: 0, duration: 0.8, stagger: 0.1, ease: "power3.out" });
+            
+            if(localStorage.getItem('theme') === 'light') toggleTheme(true);
+            const cachedAvatar = localStorage.getItem('avatar_cache');
+            if(cachedAvatar && document.getElementById('admin-avatar')) document.getElementById('admin-avatar').src = cachedAvatar;
+            loadAvatar();
+        });
+
+        function toggleTheme(forceLight = false) {
+            const isLight = forceLight || !document.body.classList.contains('light-mode');
+            if(isLight) {
+                document.body.classList.add('light-mode');
+                document.getElementById('theme-icon')?.classList.replace('fa-moon', 'fa-sun');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.body.classList.remove('light-mode');
+                document.getElementById('theme-icon')?.classList.replace('fa-sun', 'fa-moon');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        async function loadAvatar() {
+            try {
+                const res = await fetch('/api/avatar'); 
+                const data = await res.json();
+                if(data.url) {
+                    localStorage.setItem('avatar_cache', data.url);
+                    if(document.getElementById('admin-avatar')) document.getElementById('admin-avatar').src = data.url;
+                }
+            } catch(e) {}
+        }
+        
+        function showSysModal(opts) {
+            const m = document.getElementById('sys-modal');
+            const b = document.getElementById('sys-modal-box');
+            document.getElementById('sys-modal-title').innerText = opts.title || 'NOTICE';
+            document.getElementById('sys-modal-msg').innerHTML = opts.msg || '';
+            
+            const inp = document.getElementById('sys-modal-input');
+            if(opts.type === 'prompt') { inp.classList.remove('hidden'); inp.value = opts.default || ''; inp.focus(); } 
+            else { inp.classList.add('hidden'); }
+            
+            const btnContainer = document.getElementById('sys-modal-btns');
+            btnContainer.innerHTML = '';
+            
+            if(opts.type === 'confirm') {
+                btnContainer.innerHTML = \`<button class="px-6 py-2.5 rounded-full bg-black/10 dark:bg-black/5 hover:bg-red-500 hover:text-white transition font-bold" onclick="closeSysModal(false)">Cancel</button>
+                                          <button class="px-6 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white transition font-bold shadow-lg shadow-orange-500/30" onclick="closeSysModal(true)">Confirm</button>\`;
+            } else if(opts.type === 'prompt') {
+                btnContainer.innerHTML = \`<button class="px-6 py-2.5 rounded-full bg-black/10 dark:bg-black/5 hover:bg-red-500 hover:text-white transition font-bold" onclick="closeSysModal(null)">Cancel</button>
+                                          <button class="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white transition font-bold shadow-lg shadow-purple-500/30" onclick="closeSysModal(document.getElementById('sys-modal-input').value)">Save</button>\`;
+            } else {
+                btnContainer.innerHTML = \`<button class="px-8 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white transition font-bold shadow-lg shadow-orange-500/30" onclick="closeSysModal('ok')">OK</button>\`;
+            }
+            
+            window.sysModalCallback = opts.cb || function(){};
+            m.classList.remove('hidden');
+            setTimeout(() => { m.classList.remove('opacity-0'); b.classList.remove('scale-95'); }, 10);
+        }
+        function closeSysModal(val) {
+            const m = document.getElementById('sys-modal');
+            const b = document.getElementById('sys-modal-box');
+            m.classList.add('opacity-0'); b.classList.add('scale-95');
+            setTimeout(() => { m.classList.add('hidden'); if(window.sysModalCallback) window.sysModalCallback(val); }, 300);
+        }
+    </script>
+    
+    <div id="sys-modal" class="fixed inset-0 bg-black/80 z-[300] hidden flex items-center justify-center backdrop-blur-md opacity-0 transition-opacity duration-300">
+        <div class="glass-panel p-8 rounded-[2rem] max-w-sm w-[90%] text-center transform scale-95 transition-transform duration-300 shadow-[0_0_50px_rgba(255,107,0,0.3)]" id="sys-modal-box">
+            <h3 id="sys-modal-title" class="text-xl font-black mb-2 text-gradient tracking-widest"></h3>
+            <p id="sys-modal-msg" class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed text-inherit"></p>
+            <input type="text" id="sys-modal-input" class="hidden w-full p-4 mb-6 rounded-xl text-center font-mono border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 outline-none focus:border-orange-500 transition text-inherit" autocomplete="off" />
+            <div class="flex gap-3 justify-center" id="sys-modal-btns"></div>
+        </div>
+    </div>
+`;
+
+const getOrbs = () => `<div class="orb orb-purple"></div><div class="orb orb-orange"></div>`;
+
+const getFloatingHeader = (title, isAdmin) => `
+    <div class="fixed top-4 w-full flex justify-center z-[110] px-4 pointer-events-none">
+        <div class="flex justify-between items-center w-full max-w-5xl gap-2 md:gap-4 pointer-events-auto">
+            
+            <button ${isAdmin ? `onclick="document.getElementById('avatar-upload').click()"` : ''} class="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 rounded-full glass-panel overflow-hidden flex items-center justify-center relative group shadow-[0_0_20px_rgba(138,43,226,0.4)]">
+                <img id="admin-avatar" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="w-full h-full object-cover">
+                ${isAdmin ? `<div class="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center"><i class="fa-solid fa-camera text-white"></i></div>` : ''}
+            </button>
+            ${isAdmin ? `<input type="file" id="avatar-upload" class="hidden" accept="image/*" onchange="uploadAvatar(this)">` : ''}
+            
+            <div class="flex-1 max-w-md glass-panel rounded-full h-12 md:h-14 flex items-center justify-center overflow-hidden px-2">
+                <span class="font-black tracking-widest text-gradient text-sm md:text-xl uppercase truncate">${title}</span>
+            </div>
+
+            <button onclick="document.getElementById('overlay-menu').classList.toggle('menu-open')" class="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 rounded-full glass-panel flex items-center justify-center text-orange-500 hover:text-[#ff007f] transition shadow-[0_0_20px_rgba(255,107,0,0.4)] cursor-pointer z-50">
+                <i class="fa-solid fa-bars-staggered text-lg md:text-xl"></i>
+            </button>
+        </div>
+    </div>
+    
+    <div id="overlay-menu" class="fixed top-24 right-4 md:right-[10%] w-72 glass-panel z-[100] transform scale-95 opacity-0 pointer-events-none transition-all duration-300 ease-out flex flex-col p-6 rounded-[2rem]">
+        <button onclick="document.getElementById('overlay-menu').classList.remove('menu-open')" class="absolute top-5 right-6 text-xl text-gray-500 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
+        <h4 class="font-black tracking-widest text-sm mb-4 border-b border-black/10 dark:border-white/10 pb-2">MENU</h4>
+        
+        <div class="flex flex-col gap-3">
+            <a href="/" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-orange-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-house text-orange-500 text-xl"></i> Live View</a>
+            
+            ${isAdmin ? `
+            <a href="/admin" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-red-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-user-shield text-red-500 text-xl"></i> Admin Panel</a>
+            <a href="/logs" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-[#00ffcc]/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-terminal text-[#00ffcc] text-xl"></i> Master Logs</a>
+            <a href="/server_settings" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-yellow-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-gear text-yellow-500 text-xl"></i> Server Settings</a>
+            ` : `
+            <a href="/login" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-blue-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-right-to-bracket text-blue-500 text-xl"></i> Admin Login</a>
+            `}
+            
+            <div class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-purple-500/10 font-bold flex items-center gap-4 transition cursor-pointer text-inherit" onclick="toggleTheme()"><i class="fa-solid fa-moon text-[#8a2be2] text-xl" id="theme-icon"></i> Toggle Theme</div>
+            
+            ${isAdmin ? `<a href="/logout" class="p-4 rounded-2xl text-red-500 font-bold flex items-center gap-4 mt-2 hover:bg-red-500/10 transition"><i class="fa-solid fa-power-off"></i> Logout</a>` : ''}
+        </div>
+    </div>
+    
+    <script>
+        async function uploadAvatar(input) {
+            if(input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const base64 = e.target.result;
+                    document.getElementById('admin-avatar').src = base64;
+                    localStorage.setItem('avatar_cache', base64);
+                    await fetch('/api/avatar', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ image: base64 }) });
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+`;
+
+// ==========================================
+// ADMIN DASHBOARD ROUTES
+// ==========================================
+app.get('/', (req, res) => {
+    const isAdmin = req.session.isAdmin;
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="en"><head><title>ROMEO STATUS</title>${uiHead}</head>
+        <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
+            ${getOrbs()}
+            ${getFloatingHeader('ROMEO LIVE', isAdmin)}
+            
+            <div class="w-full max-w-5xl glass-panel animate-box rounded-[2rem] p-6 md:p-8 mt-4">
+                <h3 class="text-[#ff007f] font-black mb-8 flex items-center text-lg tracking-widest drop-shadow-[0_0_10px_rgba(255,0,127,0.5)]">
+                    <i class="fa-solid fa-bolt text-orange-500 mr-3 animate-pulse text-2xl"></i> LIVE ENGINE QUEUE
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead><tr class="text-gray-400 text-xs uppercase tracking-widest border-b border-black/10 dark:border-white/10"><th class="pb-4 pl-2">Target Info</th><th class="pb-4">Status / Time</th><th class="pb-4 text-center">Live Watch</th></tr></thead>
+                        <tbody id="status-body"><tr><td colspan="3" class="text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Loading Data...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            ${isAdmin ? `
+            <div id="preview-modal" class="fixed inset-0 bg-black/95 z-[200] hidden flex flex-col items-center justify-center opacity-0 transition-opacity duration-300">
+                <div class="absolute top-0 left-0 w-full p-6 flex justify-between items-center bg-gradient-to-b from-black to-transparent z-50">
+                    <div class="flex items-center gap-4 bg-white/5 px-6 py-3 rounded-full border border-white/10 backdrop-blur-md">
+                        <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_red]"></span>
+                        <span class="font-mono text-white font-bold tracking-widest">LIVE <span id="modal-uid" class="text-[#00ffcc] ml-2"></span></span>
+                    </div>
+                    <button onclick="closePreview()" class="w-14 h-14 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-full flex items-center justify-center text-2xl border border-red-500/50 transition-all shadow-[0_0_20px_rgba(255,0,0,0.5)] z-50">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="relative w-full max-w-[360px] h-[640px] max-h-[85vh] rounded-2xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_50px_rgba(255,107,0,0.3)] bg-black flex items-center justify-center">
+                    <img id="live-screen" src="" class="absolute inset-0 w-full h-full object-cover hidden" />
+                    <div id="no-signal" class="text-gray-500 flex flex-col items-center z-10">
+                        <i class="fa-solid fa-satellite-dish text-6xl mb-6 animate-pulse text-orange-500/50"></i>
+                        <span class="tracking-widest font-mono text-xl">AWAITING VIDEO SIGNAL...</span>
+                    </div>
+                </div>
+            </div>` : ''}
+
+            <script src="/socket.io/socket.io.js"></script>
+            <script>
+                const socket = io();
+                const isAdmin = ${isAdmin ? 'true' : 'false'};
+                let currentWatch = null;
+
+                socket.on('update_ui', function(data) {
+                    const tbody = document.getElementById('status-body');
+                    const keys = Object.keys(data);
+                    if(keys.length === 0) return tbody.innerHTML = '<tr><td colspan="3" class="text-center py-10 text-gray-500"><i class="fa-solid fa-ghost text-3xl mb-3 block"></i>No targets deployed.</td></tr>';
+                    
+                    let html = '';
+                    for (let uid in data) {
+                        let info = data[uid];
+                        
+                        let previewBtn = '<button class="bg-black/5 dark:bg-white/5 text-gray-400 w-12 h-12 rounded-full flex items-center justify-center mx-auto cursor-not-allowed" title="Admin Only"><i class="fa-solid fa-lock"></i></button>';
+                        
+                        if (isAdmin) {
+                            previewBtn = info.isRunning 
+                                ? \`<button onclick="openPreview('\${uid}')" class="bg-red-500/20 text-red-500 border border-red-500/50 w-12 h-12 rounded-full transition-all flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(255,0,60,0.6)] animate-pulse btn-hover"><i class="fa-solid fa-play ml-1"></i></button>\`
+                                : \`<button class="bg-black/5 dark:bg-white/5 text-gray-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto cursor-not-allowed"><i class="fa-solid fa-eye-slash"></i></button>\`;
+                        }
+
+                        let statusBadge = !info.autoActivate ? '<span class="text-red-500 text-[10px] ml-2 font-bold px-2 py-1 bg-red-500/10 rounded uppercase">Paused</span>' : '';
+
+                        html += '<tr class="border-b border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">' +
+                            '<td class="py-5 pl-2 font-bold text-lg text-inherit">' + info.name + statusBadge + '<br><span class="text-[11px] font-mono bg-black/5 dark:bg-white/10 text-orange-500 dark:text-orange-400 px-3 py-1 rounded-md mt-2 inline-block">' + uid + '</span></td>' +
+                            '<td class="py-5 font-mono font-bold text-[15px]">' + info.remaining + '</td>' +
+                            '<td class="py-5">' + previewBtn + '</td>' +
+                        '</tr>';
+                    }
+                    tbody.innerHTML = html;
+                });
+
+                ${isAdmin ? `
+                socket.on('live_frame', function(data) {
+                    if(currentWatch === data.uid) {
+                        document.getElementById('no-signal').classList.add('hidden');
+                        const img = document.getElementById('live-screen');
+                        img.classList.remove('hidden');
+                        img.src = 'data:image/jpeg;base64,' + data.frame;
+                    }
+                });
+
+                function openPreview(uid) {
+                    currentWatch = uid;
+                    document.getElementById('modal-uid').innerText = uid;
+                    const modal = document.getElementById('preview-modal');
+                    modal.classList.remove('hidden');
+                    setTimeout(() => modal.classList.remove('opacity-0'), 10);
+                    socket.emit('start_watch', {uid: uid, token: 'session'});
+                }
+
+                function closePreview() {
+                    const modal = document.getElementById('preview-modal');
+                    modal.classList.add('opacity-0');
+                    setTimeout(() => modal.classList.add('hidden'), 300);
+                    socket.emit('stop_watch');
+                    currentWatch = null;
+                }
+                ` : ''}
+            </script>
+        </body></html>
+    `);
+});
+
+app.get('/login', (req, res) => {
+    if(req.session.isAdmin) return res.redirect('/admin');
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="en"><head><title>System Auth</title>${uiHead}</head>
+        <body class="flex items-center justify-center min-h-screen relative">
+            ${getOrbs()}
+            <div id="auth-panel" class="glass-panel animate-box p-10 rounded-[3rem] w-[90%] max-w-md text-center z-10">
+                <div class="w-24 h-24 bg-gradient-to-br from-[#ff6b00] to-[#ff007f] rounded-full mx-auto mb-6 flex items-center justify-center shadow-[0_0_30px_rgba(255,0,127,0.6)]">
+                    <i class="fa-solid fa-fingerprint text-4xl text-white"></i>
+                </div>
+                <h2 class="text-2xl font-black mb-8 tracking-widest text-gradient">ADMIN AUTH</h2>
+                <form action="/login" method="POST" class="flex flex-col gap-5">
+                    <input type="password" name="password" placeholder="Master Password" required class="w-full p-4 rounded-full text-center tracking-widest"/>
+                    <button type="submit" class="btn-hover w-full p-4 rounded-full font-black tracking-widest bg-gradient-to-r from-[#ff6b00] to-[#ff007f] text-white">ENTER <i class="fa-solid fa-arrow-right ml-2"></i></button>
+                </form>
+                <div class="mt-6 text-sm font-bold text-gray-500 cursor-pointer hover:text-orange-500 transition" onclick="showForgot()">Forgot Password?</div>
+            </div>
+
+            <div id="forgot-panel" class="glass-panel p-10 rounded-[3rem] w-[90%] max-w-md text-center z-10 hidden absolute">
+                <h2 class="text-xl font-black mb-4 tracking-widest text-gradient">RESET UPLINK</h2>
+                <p class="text-xs text-gray-500 mb-6">OTP will be sent to registered Telegram Bot</p>
+                <button onclick="sendOTP()" id="otp-btn" class="w-full p-4 mb-4 rounded-full font-black tracking-widest border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white transition">SEND OTP</button>
+                <form id="reset-form" class="hidden flex flex-col gap-4" onsubmit="event.preventDefault(); resetPass();">
+                    <input type="text" id="otp-code" placeholder="Enter OTP" required class="w-full p-4 rounded-full text-center tracking-widest font-mono"/>
+                    <input type="password" id="new-pass" placeholder="New Password" required class="w-full p-4 rounded-full text-center tracking-widest"/>
+                    <button type="submit" class="btn-hover w-full p-4 rounded-full font-black tracking-widest bg-gradient-to-r from-[#8a2be2] to-[#ff007f] text-white">SAVE NEW PASSWORD</button>
+                </form>
+                <div class="mt-6 text-sm font-bold text-gray-500 cursor-pointer hover:text-orange-500" onclick="hideForgot()"><i class="fa-solid fa-arrow-left"></i> Back to Login</div>
+            </div>
+            
+            <script>
+                if(localStorage.getItem('authErr')) {
+                    showSysModal({title: "DENIED", msg: "Invalid Master Password!", type: "alert"});
+                    localStorage.removeItem('authErr');
+                }
+                function showForgot() { document.getElementById('auth-panel').classList.add('hidden'); document.getElementById('forgot-panel').classList.remove('hidden'); }
+                function hideForgot() { document.getElementById('forgot-panel').classList.add('hidden'); document.getElementById('auth-panel').classList.remove('hidden'); }
+                
+                async function sendOTP() {
+                    document.getElementById('otp-btn').innerText = "SENDING...";
+                    await fetch('/api/auth/forgot', {method: 'POST'});
+                    document.getElementById('otp-btn').classList.add('hidden');
+                    document.getElementById('reset-form').classList.remove('hidden');
+                }
+                
+                async function resetPass() {
+                    const otp = document.getElementById('otp-code').value;
+                    const pass = document.getElementById('new-pass').value;
+                    const res = await fetch('/api/auth/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({otp, pass})});
+                    const data = await res.json();
+                    if(data.success) { 
+                        showSysModal({title:"SUCCESS", msg:"Password Reset Successful!", cb: () => window.location.reload() });
+                    } else { 
+                        showSysModal({title:"ERROR", msg:"Invalid OTP!"}); 
+                    }
+                }
+            </script>
+        </body></html>
+    `);
+});
+
+app.post('/login', (req, res) => {
+    if (req.body.password === ADMIN_PASSWORD) { req.session.isAdmin = true; res.redirect('/admin'); } 
+    else { res.send(`<script>localStorage.setItem('authErr', '1'); window.location.href='/login';</script>`); }
+});
+
+app.get('/logout', (req, res) => { req.session = null; res.redirect('/'); });
+
+app.post('/api/auth/forgot', async (req, res) => {
+    resetOTP = Math.floor(1000 + Math.random() * 9000).toString();
+    await sendTgRequest("sendMessage", { chat_id: TG_CHAT_ID, text: `🔐 *ROMEO ADMIN SECURITY*\n\nYour Password Reset OTP is: \`${resetOTP}\``, parse_mode: "Markdown" });
+    res.json({success: true});
+});
+
+app.post('/api/auth/reset', async (req, res) => {
+    if(req.body.otp === resetOTP && resetOTP !== null) {
+        ADMIN_PASSWORD = req.body.pass;
+        await supabase.from('settings').upsert({ key: 'admin_pass', value: ADMIN_PASSWORD });
+        resetOTP = null;
+        res.json({success: true});
+    } else res.json({success: false});
+});
+
+app.get('/admin', async (req, res) => {
+    if (!req.session.isAdmin) return res.redirect('/login');
+
+    const { data: users } = await supabase.from('targets').select('*');
+    const { data: licenses } = await supabase.from('licenses').select('*');
+    
+    let usersHtml = '';
+    if (users && users.length > 0) {
+        users.forEach(u => {
+            let activeColor = u.auto_activate ? 'text-green-500' : 'text-red-500';
+            let activeIcon = u.auto_activate ? 'fa-toggle-on' : 'fa-toggle-off';
+
+            usersHtml += `<div class="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/5 p-5 rounded-[1.5rem] flex flex-col md:flex-row justify-between items-center gap-4 mb-4 transition hover:border-[#ff007f]/50">
+                <div class="text-center md:text-left text-inherit">
+                    <b class="text-lg"><i class="fa-solid fa-user-ninja text-[#8a2be2] mr-2"></i>${u.name}</b> <br> 
+                    <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-2">
+                        <span class="text-xs font-mono text-[#00ffcc] dark:text-teal-500 bg-black/10 dark:bg-white/5 px-2 py-1 rounded"><i class="fa-solid fa-hashtag mr-1"></i>${u.uid}</span>
+                        <span class="text-xs font-mono text-orange-600 dark:text-orange-400 bg-black/10 dark:bg-white/5 px-2 py-1 rounded flex items-center cursor-pointer hover:bg-orange-500/20 transition" onclick="editTime('${u.uid}', ${u.interval_mins})">
+                            <i class="fa-regular fa-clock mr-1"></i>${u.interval_mins}m <i class="fa-solid fa-pen ml-2 text-[10px] opacity-70"></i>
+                        </span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button class="bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 ${activeColor} px-4 py-3 rounded-xl transition font-bold text-xs flex items-center btn-hover" onclick="toggleAuto('${u.uid}', ${!u.auto_activate})"><i class="fa-solid ${activeIcon} mr-2 text-lg"></i> Auto</button>
+                    <button class="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-3 rounded-xl transition btn-hover" onclick="delUser('${u.id}', '${u.uid}')"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            </div>`;
+        });
+    }
+
+    let licensesHtml = '';
+    if (licenses && licenses.length > 0) {
+        licenses.forEach(l => {
+            const timeDiff = new Date(l.expires_at).getTime() - Date.now();
+            const daysLeft = timeDiff > 0 ? (timeDiff / (1000 * 60 * 60 * 24)).toFixed(1) + 'd' : '<span class="text-red-500">Exp</span>';
+            const bindInfo = l.ip_address ? `<span class="text-green-500 font-mono text-[10px]" title="${l.device_fingerprint}">${l.ip_address}</span>` : '<span class="text-gray-500 text-[10px]">Unbound</span>';
+            licensesHtml += `<div class="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/5 p-4 rounded-[1.5rem] flex flex-col gap-2 mb-3 hover:border-[#00ffcc]/50 transition">
+                <div class="flex justify-between items-center"><b class="font-mono text-orange-500 text-sm">${l.license_key}</b> <span class="uppercase text-[10px] font-bold bg-white/10 px-2 rounded">${l.plan_type}</span></div>
+                <div class="flex justify-between text-xs text-gray-400"><span>Remaining: ${daysLeft}</span> <span>IP: ${bindInfo}</span></div>
+                <div class="flex gap-2 mt-2 justify-end">
+                    <button onclick="flushDevice('${l.license_key}')" class="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-lg text-xs hover:bg-yellow-500 hover:text-black transition" title="Logout Device"><i class="fa-solid fa-unlock"></i> Flush</button>
+                    <button onclick="delLicense('${l.license_key}')" class="bg-red-500/20 text-red-500 px-3 py-1 rounded-lg text-xs hover:bg-red-500 hover:text-white transition"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>`;
+        });
+    }
+
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="en"><head><title>Admin Panel</title>${uiHead}</head>
+        <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
+            ${getOrbs()}
+            ${getFloatingHeader('CONTROL CENTER', true)}
+            
+            <div class="w-full max-w-7xl mt-4">
+                <div class="flex justify-start items-center mb-6 pl-2 animate-box">
+                    <button onclick="changeAdminPass()" class="btn-hover bg-gradient-to-r from-purple-500 to-[#ff007f] text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-purple-500/30 transition text-sm flex items-center">
+                        <i class="fa-solid fa-key mr-2"></i> Change Password
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="flex flex-col gap-6">
+                        <div class="glass-panel animate-box rounded-[2.5rem] p-6 h-fit">
+                            <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-plus-circle text-[#00ffcc] mr-2"></i>DEPLOY ADMIN TARGET</h3>
+                            <input type="text" id="name" placeholder="Alias Name" class="w-full p-3 mb-3 rounded-xl text-center outline-none focus:border-[#00ffcc] border border-transparent bg-black/10" />
+                            <input type="text" id="uid" placeholder="Target UID" class="w-full p-3 mb-3 rounded-xl font-mono text-center outline-none focus:border-[#00ffcc] border border-transparent bg-black/10" />
+                            <input type="number" id="interval" placeholder="Interval (Mins) Default: 40" class="w-full p-3 mb-4 rounded-xl font-mono text-center outline-none focus:border-[#00ffcc] border border-transparent bg-black/10" />
+                            <button onclick="addUser()" class="btn-hover w-full p-3 rounded-xl font-black tracking-widest bg-gradient-to-r from-[#ff6b00] to-[#ff007f] text-white"><i class="fa-solid fa-rocket mr-2"></i> DEPLOY</button>
+                        </div>
+                        
+                        <div class="glass-panel animate-box rounded-[2.5rem] p-6 h-fit">
+                            <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-key text-yellow-500 mr-2"></i>GENERATE LICENSE</h3>
+                            <select id="plan_type" class="w-full p-3 mb-3 rounded-xl text-center font-bold outline-none border border-transparent bg-black/10 text-white">
+                                <option value="trial">Trial (1 Day)</option>
+                                <option value="weekly">Weekly (7 Days)</option>
+                                <option value="monthly">Monthly (30 Days)</option>
+                                <option value="superuser">Super User (10 UIDs)</option>
+                            </select>
+                            <input type="number" step="0.1" id="plan_days" placeholder="Custom Days Override" class="w-full p-3 mb-4 rounded-xl font-mono text-center outline-none focus:border-yellow-500 border border-transparent bg-black/10" />
+                            <button onclick="genLicense()" class="btn-hover w-full p-3 rounded-xl font-black tracking-widest bg-gradient-to-r from-purple-500 to-blue-500 text-white"><i class="fa-solid fa-certificate mr-2"></i> ISSUE KEY</button>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel animate-box rounded-[2.5rem] p-6 md:col-span-1">
+                        <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-server text-[#ff007f] mr-2"></i>ADMIN TARGETS</h3>
+                        <div class="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">${usersHtml || '<div class="text-center py-10 opacity-50"><i class="fa-solid fa-box-open text-4xl mb-3 block"></i>No targets deployed.</div>'}</div>
+                    </div>
+
+                    <div class="glass-panel animate-box rounded-[2.5rem] p-6 md:col-span-1">
+                        <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-users text-orange-500 mr-2"></i>ACTIVE LICENSES</h3>
+                        <div class="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">${licensesHtml || '<div class="text-center py-10 opacity-50"><i class="fa-solid fa-ghost text-4xl mb-3 block"></i>No licenses found.</div>'}</div>
+                    </div>
+                </div>
+            </div>
+            <script>
+                async function addUser() {
+                    const name = document.getElementById('name').value;
+                    const uid = document.getElementById('uid').value;
+                    const interval = document.getElementById('interval').value || 40;
+                    if(!name || !uid) return showSysModal({msg: "Fill required fields!"});
+                    await fetch('/api/target/add', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, uid, interval}) });
+                    window.location.reload();
+                }
+                function delUser(id, uid) {
+                    showSysModal({title: "WARNING", msg: "Are you sure you want to delete this target?", type: "confirm", cb: async (res) => {
+                        if(res) {
+                            await fetch('/api/target/del', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, uid}) });
+                            window.location.reload();
+                        }
+                    }});
+                }
+                async function toggleAuto(uid, status) {
+                    await fetch('/api/target/toggle', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uid, status}) });
+                    window.location.reload();
+                }
+                function editTime(uid, oldTime) {
+                    showSysModal({title: "EDIT INTERVAL", msg: "Enter new interval (minutes):", type: "prompt", default: oldTime, cb: async (newTime) => {
+                        if(newTime && !isNaN(newTime) && newTime != oldTime) {
+                            await fetch('/api/target/edit_time', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uid, interval: parseInt(newTime)}) });
+                            window.location.reload();
+                        }
+                    }});
+                }
+                function changeAdminPass() {
+                    showSysModal({title: "SECURITY", msg: "Enter New Admin Password:", type: "prompt", cb: async (newPass) => {
+                        if(newPass && newPass.length >= 6) {
+                            await fetch('/api/auth/change_pass', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({newPass}) });
+                            showSysModal({title: "SUCCESS", msg: "Password Updated Successfully!"});
+                        } else if (newPass) showSysModal({title: "ERROR", msg: "Password too short!"});
+                    }});
+                }
+                
+                async function genLicense() {
+                    const plan = document.getElementById('plan_type').value;
+                    const days = document.getElementById('plan_days').value;
+                    await fetch('/api/admin/issue_key', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({plan, days}) });
+                    window.location.reload();
+                }
+                async function flushDevice(key) {
+                    await fetch('/api/admin/flush_device', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key}) });
+                    window.location.reload();
+                }
+                async function delLicense(key) {
+                    if(confirm("Delete this license completely?")) {
+                        await fetch('/api/admin/purge_key', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key}) });
+                        window.location.reload();
+                    }
+                }
+            </script>
+        </body></html>
+    `);
+});
+
+app.post('/api/auth/change_pass', async (req, res) => {
+    if(!req.session.isAdmin) return res.json({success:false});
+    ADMIN_PASSWORD = req.body.newPass;
+    await supabase.from('settings').upsert({ key: 'admin_pass', value: ADMIN_PASSWORD });
+    res.json({success:true});
+});
+
+app.post('/api/target/edit_time', async (req, res) => {
+    if(!req.session.isAdmin) return res.json({success:false});
+    const { uid, interval } = req.body;
+    await supabase.from('targets').update({ interval_mins: interval }).eq('uid', uid);
+    if(activeTimers[uid]) {
+        const t = activeTimers[uid];
+        t.intervalMins = interval;
+        if(t.autoActivate) scheduleNextRun(uid); 
+    }
+    res.json({ success: true });
+});
+
+app.post('/api/admin/issue_key', async (req, res) => {
+    if(!req.session.isAdmin) return res.json({success:false});
+    const { plan, days } = req.body;
+    
+    let finalDays = plan === 'trial' ? 1 : (plan === 'weekly' ? 7 : 30);
+    if(days && !isNaN(parseFloat(days))) finalDays = parseFloat(days);
+
+    // NEW LICENSE FORMAT (ROMEO-XXXXX-XXXX)
+    const generatedKey = 'ROMEO-' + crypto.randomBytes(3).toString('hex').toUpperCase().substring(0,5) + '-' + crypto.randomBytes(2).toString('hex').toUpperCase();
+    const expiry = new Date(); 
+    expiry.setHours(expiry.getHours() + (finalDays * 24)); 
+
+    const slots = plan === 'superuser' ? 10 : 1;
+
+    await supabase.from('licenses').insert([{ license_key: generatedKey, plan_type: plan, expires_at: expiry.toISOString(), allowed_uids: slots }]);
+    res.json({ success: true });
+});
+app.post('/api/admin/flush_device', async (req, res) => {
+    if(!req.session.isAdmin) return res.json({success:false});
+    await supabase.from('licenses').update({ device_fingerprint: null, ip_address: null }).eq('license_key', req.body.key);
+    res.json({ success: true });
+});
+app.post('/api/admin/purge_key', async (req, res) => {
+    if(!req.session.isAdmin) return res.json({success:false});
+    await supabase.from('licenses').delete().eq('license_key', req.body.key);
+    res.json({ success: true });
+});
+
+// ==========================================
+// NEW SERVER SETTINGS ROUTE (CORS & API LOGS)
+// ==========================================
+app.get('/server_settings', (req, res) => {
+    if (!req.session.isAdmin) return res.redirect('/login');
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="en"><head><title>Server Settings</title>${uiHead}</head>
+        <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
+            ${getOrbs()}
+            ${getFloatingHeader('SERVER SETTINGS', true)}
+            
+            <div class="w-full max-w-7xl mt-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="glass-panel animate-box rounded-[2rem] p-6 bg-black/90 dark:bg-black/80 flex flex-col">
+                    <h3 class="font-black tracking-widest text-yellow-500 text-sm mb-4 border-b border-white/10 pb-2"><i class="fa-solid fa-shield-halved mr-2"></i>CORS MANAGEMENT</h3>
+                    
+                    <div class="flex items-center justify-between bg-white/5 p-4 rounded-xl mb-4">
+                        <div>
+                            <div class="font-bold text-white text-sm">Allow All CORS (*)</div>
+                            <div class="text-[10px] text-gray-400">Warning: Opens API to all domains if active.</div>
+                        </div>
+                        <button id="cors-toggle" onclick="toggleCors()" class="px-4 py-2 rounded-lg font-bold text-xs transition ${ALLOW_ALL_CORS ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                            ${ALLOW_ALL_CORS ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="new-cors-url" placeholder="https://example.com" class="flex-1 p-3 rounded-xl font-mono text-xs outline-none bg-black/50 border border-white/10 text-white" />
+                        <button onclick="addCorsUrl()" class="px-4 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded-xl text-xs transition"><i class="fa-solid fa-plus"></i> ADD</button>
+                    </div>
+
+                    <div id="cors-list" class="flex-1 overflow-y-auto space-y-2 max-h-[300px] custom-scrollbar"></div>
+                </div>
+
+                <div class="glass-panel animate-box rounded-[2rem] p-6 bg-black/90 dark:bg-black/80 flex flex-col h-[60vh]">
+                    <div class="flex justify-between items-center border-b border-white/10 pb-2 mb-4">
+                        <h3 class="font-black tracking-widest text-[#00ffcc] text-sm"><i class="fa-solid fa-route mr-2"></i>API ROUTE LOGS</h3>
+                        <button onclick="fetchApiLogs()" class="text-xs bg-white/10 hover:bg-[#00ffcc] hover:text-black text-white px-3 py-1 rounded transition"><i class="fa-solid fa-rotate-right mr-1"></i> Refresh</button>
+                    </div>
+                    <div id="api-logs-container" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar text-xs"></div>
+                </div>
+            </div>
+
+            <script>
+                async function fetchSettings() {
+                    const res = await fetch('/api/system/settings_fetch');
+                    const data = await res.json();
+                    renderCorsList(data.urls);
+                }
+                
+                function renderCorsList(urls) {
+                    const list = document.getElementById('cors-list');
+                    if(urls.length === 0) return list.innerHTML = '<div class="text-center text-gray-500 py-4 text-xs">No specific URLs added.</div>';
+                    list.innerHTML = urls.map(u => \`<div class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5 hover:border-yellow-500/30 transition">
+                        <span class="font-mono text-gray-300 text-xs">\${u}</span>
+                        <button onclick="removeCorsUrl('\${u}')" class="text-red-400 hover:text-red-500"><i class="fa-solid fa-trash"></i></button>
+                    </div>\`).join('');
+                }
+
+                async function toggleCors() {
+                    const btn = document.getElementById('cors-toggle');
+                    const isCurrentlyOn = btn.innerText.includes('ON');
+                    const res = await fetch('/api/system/cors_toggle', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: !isCurrentlyOn}) });
+                    const data = await res.json();
+                    if(data.success) window.location.reload();
+                }
+
+                async function addCorsUrl() {
+                    const url = document.getElementById('new-cors-url').value;
+                    if(!url) return;
+                    await fetch('/api/system/cors_add', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url}) });
+                    document.getElementById('new-cors-url').value = '';
+                    fetchSettings();
+                }
+
+                async function removeCorsUrl(url) {
+                    await fetch('/api/system/cors_remove', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url}) });
+                    fetchSettings();
+                }
+
+                async function fetchApiLogs() {
+                    const res = await fetch('/api/system/api_logs_fetch');
+                    const data = await res.json();
+                    const container = document.getElementById('api-logs-container');
+                    if(data.logs.length === 0) return container.innerHTML = '<div class="text-center text-gray-500 py-10">No API activity yet.</div>';
+                    
+                    container.innerHTML = data.logs.map(log => {
+                        const statusColor = log.status >= 400 ? 'text-red-400' : 'text-green-400';
+                        return \`<div class="bg-black/50 p-3 rounded-xl border border-white/5">
+                            <div class="flex justify-between mb-2">
+                                <span class="font-bold text-orange-400">\${log.method} <span class="text-blue-300 font-mono ml-2">\${log.url}</span></span>
+                                <span class="font-mono text-gray-500">\${log.timeTaken} | <span class="\${statusColor}">\${log.status}</span></span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
+                                <div><div class="text-[9px] text-gray-500 mb-1">REQUEST BODY</div><pre class="text-[10px] text-pink-200 overflow-x-auto">\${JSON.stringify(log.reqBody, null, 2)}</pre></div>
+                                <div><div class="text-[9px] text-gray-500 mb-1">RESPONSE</div><pre class="text-[10px] text-[#00ffcc] overflow-x-auto">\${JSON.stringify(log.resBody, null, 2)}</pre></div>
+                            </div>
+                        </div>\`;
+                    }).join('');
+                }
+
+                fetchSettings();
+                fetchApiLogs();
+                setInterval(fetchApiLogs, 5000);
+            </script>
+        </body></html>
+    `);
+});
+
+// Settings API Endpoints
+app.get('/api/system/settings_fetch', (req, res) => {
+    if(!req.session.isAdmin) return res.json({error: "Unauthorized"});
+    const urls = fs.readFileSync(CORS_FILE, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+    res.json({ allowAllCors: ALLOW_ALL_CORS, urls, hostEnv: HOST_ENV });
+});
+app.post('/api/system/cors_toggle', (req, res) => {
+    if(!req.session.isAdmin) return res.json({error: "Unauthorized"});
+    ALLOW_ALL_CORS = req.body.status;
+    res.json({success: true});
+});
+app.post('/api/system/cors_add', (req, res) => {
+    if(!req.session.isAdmin) return res.json({error: "Unauthorized"});
+    const urls = fs.readFileSync(CORS_FILE, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+    if(!urls.includes(req.body.url)) { urls.push(req.body.url); fs.writeFileSync(CORS_FILE, urls.join('\n'), 'utf8'); }
+    res.json({success: true});
+});
+app.post('/api/system/cors_remove', (req, res) => {
+    if(!req.session.isAdmin) return res.json({error: "Unauthorized"});
+    let urls = fs.readFileSync(CORS_FILE, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+    urls = urls.filter(u => u !== req.body.url);
+    fs.writeFileSync(CORS_FILE, urls.join('\n'), 'utf8');
+    res.json({success: true});
+});
+app.get('/api/system/api_logs_fetch', (req, res) => {
+    if(!req.session.isAdmin) return res.json({error: "Unauthorized"});
+    res.json({ logs: backendApiLogs });
+});
+
+
+app.get('/logs', (req, res) => {
+    if (!req.session.isAdmin) return res.redirect('/login');
+
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="en"><head><title>System Logs</title>${uiHead}</head>
+        <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
+            ${getOrbs()}
+            ${getFloatingHeader('MASTER LOGS', true)}
+            
+            <div class="w-full max-w-7xl mt-4">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <div class="glass-panel animate-box rounded-[2rem] flex flex-col h-[50vh] overflow-hidden bg-black/90 dark:bg-black/80">
+                        <div class="flex justify-between items-center p-5 border-b border-white/10">
+                            <h3 class="font-black tracking-widest text-[#8a2be2] text-sm"><i class="fa-solid fa-microchip mr-2"></i>ENGINE EVENTS</h3>
+                            <button onclick="copyContent('sys-logs')" class="text-xs bg-white/10 hover:bg-[#8a2be2] text-white px-3 py-1 rounded transition"><i class="fa-regular fa-copy mr-1"></i> Copy</button>
+                        </div>
+                        <div class="terminal text-xs md:text-sm flex-1 overflow-y-auto p-6 text-white space-y-1" id="sys-logs"></div>
+                    </div>
+                    
+                    <div class="glass-panel animate-box rounded-[2rem] flex flex-col h-[50vh] overflow-hidden bg-black/90 dark:bg-black/80">
+                        <div class="flex justify-between items-center p-5 border-b border-white/10">
+                            <h3 class="font-black tracking-widest text-[#00ffcc] text-sm"><i class="fa-solid fa-network-wired mr-2"></i>NETWORK & STATUS</h3>
+                            <button onclick="copyContent('net-logs')" class="text-xs bg-white/10 hover:bg-[#00ffcc] hover:text-black text-white px-3 py-1 rounded transition"><i class="fa-regular fa-copy mr-1"></i> Copy</button>
+                        </div>
+                        <div class="terminal text-[11px] md:text-xs flex-1 overflow-y-auto p-6 text-pink-200 break-all leading-relaxed space-y-1" id="net-logs"></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel animate-box rounded-[2rem] p-6 bg-black/90 dark:bg-black/80">
+                     <h3 class="font-black tracking-widest text-orange-500 text-sm mb-4 border-b border-white/10 pb-2"><i class="fa-solid fa-camera mr-2"></i>STEP MATRIX & ERRORS</h3>
+                     <div id="matrix-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>
+                </div>
+            </div>
+            
+            <div id="img-modal" class="fixed inset-0 bg-black/95 z-[500] hidden flex-col items-center justify-center p-4">
+                <button onclick="document.getElementById('img-modal').classList.add('hidden')" class="absolute top-6 right-6 text-white text-4xl hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
+                <img id="modal-img-src" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-[0_0_50px_rgba(255,107,0,0.5)]" />
+            </div>
+
+            <script src="/socket.io/socket.io.js"></script>
+            <script>
+                const socket = io();
+                socket.on('init_logs', function(data) {
+                    document.getElementById('sys-logs').innerHTML = data.sys.join('');
+                    document.getElementById('net-logs').innerHTML = data.net.join('');
+                    renderMatrix(data.matrix);
+                });
+                socket.on('cron_log', function(data) {
+                    const el = document.getElementById(data.type === 'net' ? 'net-logs' : 'sys-logs');
+                    el.innerHTML += data.html; el.scrollTop = el.scrollHeight;
+                });
+                socket.on('step_matrix_update', function(matrix) { renderMatrix(matrix); });
+
+                function renderMatrix(matrix) {
+                    const grid = document.getElementById('matrix-grid');
+                    grid.innerHTML = '';
+                    for(let uid in matrix) {
+                        matrix[uid].forEach(snap => {
+                            let isErr = snap.isError ? 'border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)]' : 'border-white/10 hover:border-orange-500';
+                            let titleCol = snap.isError ? 'text-red-400 font-bold' : 'text-gray-400';
+                            grid.innerHTML += \`<div class="bg-black/50 rounded-xl p-2 border \${isErr} cursor-pointer transition hover:scale-105" onclick="showImg('data:image/jpeg;base64,\${snap.img}')">
+                                <div class="text-[10px] text-orange-400 font-bold truncate mb-1">\${uid}</div>
+                                <div class="text-[8px] \${titleCol} truncate mb-2 font-mono">\${snap.step} | \${snap.time}</div>
+                                <img src="data:image/jpeg;base64,\${snap.img}" class="w-full aspect-[9/16] object-cover rounded-lg" />
+                            </div>\`;
+                        });
+                    }
+                }
+                function showImg(src) {
+                    document.getElementById('modal-img-src').src = src;
+                    document.getElementById('img-modal').classList.remove('hidden');
+                    document.getElementById('img-modal').classList.add('flex');
+                }
+                function copyContent(id) {
+                    navigator.clipboard.writeText(document.getElementById(id).innerText);
+                    showSysModal({title: "COPIED", msg: "Logs copied to clipboard successfully!"});
+                }
+            </script>
+        </body></html>
+    `);
+});
+
+// ==========================================
+// SOCKET.IO & TIMING LOGIC (Original)
+// ==========================================
+io.on('connection', (socket) => {
+    socket.emit('init_logs', { sys: systemLogs, net: networkLogs, matrix: licenseStepScreenshots });
+    socket.on('start_watch', (data) => { if(data.token) global.watchingUID = data.uid; });
+    socket.on('stop_watch', () => { global.watchingUID = null; });
+});
+
+setInterval(() => {
+    const uiData = {};
+    const now = Date.now();
+    for (const uid in activeTimers) {
+        const timerObj = activeTimers[uid];
+        
+        let remainingStr = '';
+        let isRunning = engineStatus[uid] || false;
+
+        if(timerObj.isSub) {
+            if (isRunning) remainingStr = '<span class="text-[#ff007f] font-black tracking-widest flex items-center"><i class="fa-solid fa-gear fa-spin mr-2"></i>EXECUTING</span>';
+            else {
+                const diff = timerObj.nextRun - now;
+                if(diff > 0) remainingStr = '<span class="text-[#00ffcc] font-medium"><i class="fa-regular fa-clock mr-1"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
+                else remainingStr = '<span class="text-yellow-500 font-medium">Booting...</span>';
+            }
+        } else {
+            const diff = timerObj.nextRun - now;
+            if(!timerObj.autoActivate) remainingStr = '<span class="text-red-500 font-bold"><i class="fa-solid fa-pause mr-1"></i> PAUSED</span>';
+            else if (isRunning) remainingStr = '<span class="text-[#ff007f] font-black tracking-widest flex items-center"><i class="fa-solid fa-gear fa-spin mr-2"></i>EXECUTING</span>';
+            else if (diff > 0) remainingStr = '<span class="text-[#00ffcc] font-medium"><i class="fa-regular fa-clock mr-1"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
+            else remainingStr = '<span class="text-yellow-500 font-medium">Booting...</span>';
+        }
+        
+        uiData[uid] = { name: timerObj.name, remaining: remainingStr, isRunning, autoActivate: timerObj.autoActivate !== false };
+    }
+    io.emit('update_ui', uiData);
+}, 1000);
+
+function appendLog(html, type = 'sys') {
+    const timeStr = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour12: false });
+    const fullLog = `<div class="border-b border-white/5 pb-1 mb-1 text-[11px]"><span class="text-gray-500 bg-white/5 px-2 py-0.5 rounded mr-2 font-mono">[${timeStr}]</span> ${html}</div>`;
+    if (type === 'net') { networkLogs.push(fullLog); if(networkLogs.length > 500) networkLogs.shift(); } 
+    else { systemLogs.push(fullLog); if(systemLogs.length > 300) systemLogs.shift(); }
+    io.emit('cron_log', { html: fullLog, type });
+}
+
+app.get('/api/avatar', async (req, res) => {
+    try { const { data } = await supabase.from('settings').select('value').eq('key', 'admin_avatar').single(); res.json({ url: data ? data.value : null }); } 
+    catch(e) { res.json({ url: null }); }
+});
+
+app.post('/api/avatar', async (req, res) => {
+    if(!req.session.isAdmin) return res.status(403).json({});
+    try { await supabase.from('settings').upsert({ key: 'admin_avatar', value: req.body.image }); res.json({ success: true }); } 
+    catch(e) { res.status(500).json({ success: false }); }
+});
+
+app.post('/api/target/add', async (req, res) => {
+    if(!req.session.isAdmin) return res.status(403).json({});
+    const { name, uid, interval } = req.body;
+    await supabase.from('targets').insert([{ name, uid, interval_mins: interval || 40 }]);
+    startUIDCycle(uid, name, interval || 40, true, true);
+    res.json({ success: true });
+});
+
+app.post('/api/target/del', async (req, res) => {
+    if(!req.session.isAdmin) return res.status(403).json({});
+    const { uid } = req.body;
+    await supabase.from('targets').delete().eq('uid', uid);
+    if (activeTimers[uid]) { clearTimeout(activeTimers[uid].timer); delete activeTimers[uid]; engineStatus[uid] = false; }
+    res.json({ success: true });
+});
+
+app.post('/api/target/toggle', async (req, res) => {
+    if(!req.session.isAdmin) return res.status(403).json({});
+    const { uid, status } = req.body;
+    await supabase.from('targets').update({ auto_activate: status }).eq('uid', uid);
+    if(activeTimers[uid]) {
+        activeTimers[uid].autoActivate = status;
+        if(!status) clearTimeout(activeTimers[uid].timer); else scheduleNextRun(uid);
+    }
+    res.json({ success: true });
+});
+
+function scheduleNextRun(uid) {
+    if(!activeTimers[uid] || !activeTimers[uid].autoActivate) return;
+    const intervalMs = activeTimers[uid].intervalMins * 60 * 1000;
+    activeTimers[uid].nextRun = Date.now() + intervalMs;
+    clearTimeout(activeTimers[uid].timer); 
+    activeTimers[uid].timer = setTimeout(() => executeEngineWithRetry(uid), intervalMs);
+}
+
+// ----------------------------------------------------
+// CRASH & RETRY WRAPPER ADDED (Original)
+// ----------------------------------------------------
+async function executeEngineWithRetry(uid, forcedName = null) {
+    const target = activeTimers[uid];
+    if(target && target.isSub && !target.autoActivate) return;
+    if(!target && !forcedName) return; 
+    
+    const name = forcedName || target.name;
+    let maxRetries = 3;
+    let attempt = 0;
+    let success = false;
+
+    while (attempt < maxRetries && !success) {
+        attempt++;
+        try {
+            if(attempt > 1) appendLog(`<span class="text-yellow-400 font-bold"><i class="fa-solid fa-rotate-right"></i> Auto-Restarting execution (Attempt ${attempt}/${maxRetries})...</span>`);
+            await runGhostActivator(uid, name);
+            success = true; 
+        } catch (error) {
+            if (attempt < maxRetries) {
+                appendLog(`<span class="text-yellow-500 font-bold"><i class="fa-solid fa-triangle-exclamation"></i> Execution Failed. Restarting in 5s...</span>`);
+                await new Promise(r => setTimeout(r, 5000));
+            } else {
+                appendLog(`<span class="text-red-500 font-black"><i class="fa-solid fa-skull"></i> Task completely failed after ${maxRetries} retries.</span>`);
+            }
+        }
+    }
+
+    if(target && !target.isSub && target.autoActivate) {
+        appendLog(`<span class="text-orange-400 font-bold"><i class="fa-solid fa-hourglass-start mr-1"></i> Auto-Resume after ${target.intervalMins} mins...</span>`);
+        scheduleNextRun(uid);
+    } else if(target && target.isSub) {
+        appendLog(`<span class="text-orange-400 font-bold"><i class="fa-solid fa-hourglass-start mr-1"></i> Sub-Resume after ${target.intervalMins} mins...</span>`);
+        scheduleNextRun(uid);
+    }
+}
+
+function startUIDCycle(uid, name, intervalMins, autoActivate, runImmediate = false) {
+    if (activeTimers[uid]) clearTimeout(activeTimers[uid].timer);
+    activeTimers[uid] = { name, intervalMins, autoActivate, totalTime: 0, nextRun: Date.now(), timer: null, isSub: false };
+
+    if(!autoActivate) return;
+    if(runImmediate) {
+        if(!executionQueue.includes(uid)) executionQueue.push(uid);
+        processQueue();
+    } else scheduleNextRun(uid);
+}
+
+// System Bootloader (Restore Admin targets & Licenses)
+setTimeout(async () => {
+    try {
+        const { data: users } = await supabase.from('targets').select('*');
+        if (users && users.length > 0) {
+            appendLog('<span class="text-purple-400"><i class="fa-solid fa-database mr-1"></i> Restoring Database Systems...</span>');
+            users.forEach((u, index) => {
+                setTimeout(() => startUIDCycle(u.uid, u.name, u.interval_mins, u.auto_activate, u.auto_activate), index * 10000);
+            });
+        }
+
+        const { data: licenses } = await supabase.from('licenses').select('*');
+        if (licenses) {
+            licenses.forEach(l => {
+                if(new Date(l.expires_at).getTime() > Date.now() && l.uids && l.uids.length > 0) {
+                    startPremiumCycle(l.license_key, l.uids, l.plan_type, l.expires_at, true);
+                }
+            });
+        }
+    } catch(e) {}
+}, 4000);
+
+// ==========================================
+// CHROMIUM ENGINE (PUPPETEER) - CDP 90 FPS + AD BLOCKER
+// ==========================================
+async function runGhostActivator(uid, name) {
+    if(engineStatus[uid]) throw new Error("Engine already running for this UID");
+    let browser;
+    engineStatus[uid] = true;
+    const sysLog = (msg) => appendLog(`<b class="text-white">[${uid}]</b> ${msg}`); 
+    const netLog = (msg) => appendLog(`<b class="text-[#ff007f]">[${uid}]</b> ${msg}`, 'net');
+
+    try {
+        sysLog('<i class="fa-solid fa-rocket text-[#00ffcc]"></i> Engine Booting (Native 90 FPS)...'); 
+        
+        browser = await puppeteer.launch({
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage', '--window-size=360,640'],
+            headless: 'new',
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser' 
+        });
+
+        const page = (await browser.pages())[0] || await browser.newPage();
+        await page.setViewport({ width: 360, height: 640, isMobile: true, hasTouch: true });
+
+        // CDP SCREENCAST FOR ZERO-LATENCY 90 FPS STREAM
+        let lastStreamFrame = null;
+        const cdpClient = await page.target().createCDPSession();
+        await cdpClient.send('Page.startScreencast', { format: 'jpeg', quality: 40, everyNthFrame: 1 });
+        
+        cdpClient.on('Page.screencastFrame', async (evt) => {
+            lastStreamFrame = evt.data;
+            if(global.watchingUID === uid) {
+                io.emit('live_frame', { uid, frame: evt.data, timestamp: Date.now() });
+            }
+            await cdpClient.send('Page.screencastFrameAck', { sessionId: evt.sessionId }).catch(()=>{});
+        });
+
+        const saveMatrixScreen = async (stepName, isError = false) => {
+            if(!lastStreamFrame) return; 
+            if(!licenseStepScreenshots[uid]) licenseStepScreenshots[uid] = [];
+            licenseStepScreenshots[uid].push({ step: stepName, img: lastStreamFrame, time: new Date().toLocaleTimeString(), isError });
+            if(licenseStepScreenshots[uid].length > 8) licenseStepScreenshots[uid].shift(); // Keep 8 frames
+            io.emit('step_matrix_update', licenseStepScreenshots);
+        };
+
+        await page.evaluateOnNewDocument(() => { window.open = function() { return null; }; });
+
+        browser.on('targetcreated', async (target) => {
+            if (target.type() === 'page') {
+                try {
+                    const newPage = await target.page();
+                    if (newPage && newPage.url() !== 'about:blank') {
+                        setTimeout(() => newPage.close().catch(() => {}), 500);
+                        sysLog('<i class="fa-solid fa-ban text-red-500"></i> Popup Ad Tab Blocked.');
+                    }
+                } catch(e) {}
+            }
+        });
+        
+        await page.setRequestInterception(true);
+        page.on('request', req => {
+            const rType = req.resourceType();
+            const url = req.url().toLowerCase();
+            if (rType === 'media') return req.abort(); 
+            if (req.isNavigationRequest() && req.frame() === page.mainFrame()) {
+                if (!url.includes('unlockffbeta.com') && !url.includes('google.com')) {
+                    netLog(`<span class="text-red-400 font-bold"><i class="fa-solid fa-shield-halved"></i> Hijack Blocked: ${url.substring(0, 40)}...</span>`);
+                    return req.abort('aborted'); 
+                }
+            }
+            req.continue(); 
+        });
+
+        page.on('response', async (res) => {
+            const rType = res.request().resourceType();
+            if(rType === 'xhr' || rType === 'fetch' || rType === 'document') {
+                const url = res.url();
+                const status = res.status();
+                if(!['google-analytics', 'doubleclick', 'facebook', 'bing'].some(j => url.includes(j))) {
+                    let statusColor = status >= 400 ? 'text-red-500 font-bold' : (status >= 300 ? 'text-yellow-400' : 'text-green-400');
+                    let icon = status >= 400 ? 'fa-xmark' : 'fa-check';
+                    netLog(`<div class="bg-black/20 p-2 rounded mb-1 border-l-2 border-white/10"><span class="${statusColor} font-mono mr-2"><i class="fa-solid ${icon}"></i> ${status}</span> <span class="text-blue-300">${url.substring(0,60)}...</span></div>`);
+                }
+            }
+        });
+
+        await page.setUserAgent('Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36');
+        page.on('dialog', async dialog => { await dialog.dismiss(); }); 
+
+        await page.goto('https://unlockffbeta.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+        sysLog('<i class="fa-solid fa-globe text-[#8a2be2]"></i> Page loaded. Starting sequence...');
+        await saveMatrixScreen("INIT_DOM_LOAD");
+
+        let safetyCounter = 0;
+        let uidInjected = false;
+        
+        while (safetyCounter < 45) { 
+            safetyCounter++;
+            await saveMatrixScreen(`LOOP_STEP_${safetyCounter}`); 
+            
+            const allPages = await browser.pages();
+            if (allPages.length > 1) {
+                for (let i = 0; i < allPages.length; i++) {
+                    if (allPages[i] !== page) await allPages[i].close().catch(() => {});
+                }
+                await page.bringToFront();
+            }
+
+            // AGGRESSIVE AD BLOCKER (BONUS POPUP KILLER)
+            const popupDestroyed = await page.evaluate(() => {
+                let killed = false;
+                document.querySelectorAll('div, iframe, section').forEach(el => {
+                    const text = el.innerText ? el.innerText.toLowerCase() : '';
+                    const z = window.getComputedStyle(el).zIndex;
+                    if(text.includes('bonus available') || text.includes('congratulations') || (parseInt(z) > 999 && (el.id.includes('ad') || el.className.includes('ad')))) {
+                        el.remove();
+                        killed = true;
+                    }
+                });
+                return killed;
+            });
+            if(popupDestroyed) { sysLog('<i class="fa-solid fa-bomb text-yellow-400"></i> Spam Overlay Destroyed!'); }
+
+            await page.evaluate(() => {
+                const reloadBtn = Array.from(document.querySelectorAll('button, a, div[role="button"]')).find(b => b.innerText && b.innerText.toLowerCase().includes('i fixed it'));
+                if(reloadBtn) reloadBtn.click();
+            });
+
+            const resultData = await page.evaluate(() => {
+                const result = { success: false, timeStr: "1h 0m 0s" };
+                const text = document.body.innerText ? document.body.innerText.toLowerCase() : "";
+                
+                if (text.includes('step ') && text.includes(' of ')) return result;
+                
+                if (text.includes('access granted') || text.includes('successfully') || text.includes('expires in')) {
+                    result.success = true;
+                    // TIME EXTRACTION LOGIC
+                    const match = document.body.innerText.match(/\d+h\s+\d+m\s+\d+s/i);
+                    if(match) result.timeStr = match[0];
+                }
+                return result;
+            });
+
+            if (resultData.success) {
+                sysLog('<span class="text-green-400 font-black"><i class="fa-solid fa-circle-check"></i> ✅ Activation Successful!</span>');
+                await saveMatrixScreen("SUCCESS_VERIFIED");
+
+                // TIME PARSING AND RE-SCHEDULING LOGIC
+                let extractedMs = 60 * 60 * 1000; // Default 1 hour
+                const tMatch = resultData.timeStr.match(/(\d+)h\s+(\d+)m\s+(\d+)s/i);
+                if(tMatch) {
+                    extractedMs = (parseInt(tMatch[1]) * 60 * 60 * 1000) + (parseInt(tMatch[2]) * 60 * 1000) + (parseInt(tMatch[3]) * 1000);
+                }
+
+                // Restart exactly 5 mins before expiry
+                let safeIntervalMs = extractedMs - (5 * 60 * 1000);
+                if(safeIntervalMs < 60000) safeIntervalMs = 60000; 
+
+                if (activeTimers[uid]) {
+                    if(!activeTimers[uid].isSub) {
+                        if(!activeTimers[uid].totalTime) activeTimers[uid].totalTime = 0;
+                        activeTimers[uid].totalTime += extractedMs;
+                        
+                        if(activeTimers[uid].totalTime < (3 * 60 * 60 * 1000)) { // 3 HOURS LIMIT FOR FREE
+                            activeTimers[uid].intervalMins = Math.floor(safeIntervalMs / 60000);
+                        } else {
+                            activeTimers[uid].autoActivate = false; 
+                            sysLog('<span class="text-yellow-400">Free user max 3 hours limit reached. Activation stopped.</span>');
+                        }
+                    } else {
+                        // Premium User (Loop until plan expires)
+                        activeTimers[uid].intervalMins = Math.floor(safeIntervalMs / 60000);
+                    }
+                }
+
+                try {
+                    await sendTelegramScreenshot(lastStreamFrame, uid, `${name} (Time Granted: ${resultData.timeStr})`, false);
+                } catch(e) {}
+                
+                return true; 
+            }
+
+            if (!uidInjected) {
+                const injected = await page.evaluate((val) => {
+                    const inputs = Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"])'));
+                    if (inputs.length > 0 && inputs[0].value !== val) {
+                        inputs[0].focus(); inputs[0].value = val;
+                        inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+                        inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+                        return true;
+                    }
+                    return false;
+                }, uid);
+                if (injected) { 
+                    uidInjected = true; 
+                    sysLog('<i class="fa-solid fa-keyboard text-[#ff007f]"></i> UID typed successfully.');
+                    await saveMatrixScreen("UID_TYPED");
+                    await new Promise(r => setTimeout(r, 1000)); 
+                }
+            }
+
+            const clicked = await page.evaluate(() => {
+                const closeWords = ['close', 'x', 'skip ad', 'no thanks'];
+                const targets = ['continue without discord', 'continue (an ad will open)', 'continue', 'proceed', 'next', 'submit'];
+                const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"], span'));
+
+                for (let btn of buttons) {
+                    if (!btn || typeof btn.innerText !== 'string') continue;
+                    const text = btn.innerText.toLowerCase().trim();
+                    if (btn.offsetHeight > 0 && window.getComputedStyle(btn).display !== 'none') {
+                        if (closeWords.includes(text) || (text === 'x' && btn.clientWidth < 50)) {
+                            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+                            if (typeof btn.click === 'function') btn.click();
+                            return "Closed Ad (" + text + ")";
+                        }
+                    }
+                }
+                for (let btn of buttons) {
+                    if (!btn || typeof btn.innerText !== 'string') continue;
+                    const text = btn.innerText.toLowerCase().trim();
+                    if (btn.offsetHeight > 0 && window.getComputedStyle(btn).display !== 'none') {
+                        if (targets.some(t => text === t || text.includes(t))) {
+                            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+                            if (typeof btn.click === 'function') btn.click();
+                            return text;
+                        }
+                    }
+                }
+                return null;
+            });
+
+            if (clicked) {
+                sysLog(`<i class="fa-solid fa-hand-pointer text-orange-400"></i> Action Performed: "${clicked}"`);
+                await saveMatrixScreen("ACTION_CLICKED");
+                await new Promise(r => setTimeout(r, 2000));
+            } else {
+                await new Promise(r => setTimeout(r, 1000)); 
+            }
+            
+            const isBlocked = await page.evaluate(() => {
+                const text = document.body.innerText ? document.body.innerText.toLowerCase() : "";
+                return text.includes('invalid id');
+            });
+            if(isBlocked) {
+                await saveMatrixScreen("ERROR_INVALID_ID", true);
+                throw new Error("Blocked by Target (Invalid ID)");
+            }
+        }
+        await saveMatrixScreen("ERROR_TIMEOUT", true);
+        throw new Error("Execution Timeout! Target flow got stuck.");
+    } catch (error) {
+        sysLog(`<span class="text-red-500 font-bold"><i class="fa-solid fa-triangle-exclamation"></i> ❌ ${error.message}</span>`);
+        try {
+            await sendTelegramScreenshot(lastStreamFrame, uid, name, true); 
+        } catch(e){}
+        throw error;
+    } finally {
+        if (browser) await browser.close();
+        engineStatus[uid] = false; 
+        sysLog('<i class="fa-solid fa-power-off text-gray-500"></i> Engine Closed.');
+    }
+}
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log('\n=========================================');
+    console.log(`👑 ROMEO KING ADMIN SERVER RUNNING`);
+    console.log(`📡 ENVIRONMENT: ${HOST_ENV}`);
+    console.log(`👉 Front: http://localhost:${PORT}/`);
+    console.log('=========================================\n');
+});
