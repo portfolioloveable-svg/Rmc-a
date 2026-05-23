@@ -251,7 +251,7 @@ async function sendTelegramScreenshot(base64Image, uid, name, isError = false) {
     if (isError) caption = `❌ Activation Error/Block!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time: ${new Date().toLocaleTimeString()}`;
     
     const sent = await sendTgRequest("sendPhoto", { chat_id: TG_CHAT_ID, caption }, { fieldName: 'photo', buffer, filename: 'ss.jpg' });
-    if(sent) appendLog(`<span class="${isError ? 'text-red-400' : 'text-blue-400'}">📲 Screenshot delivered securely.</span>`);
+    if(sent) appendLog(`<span class="${isError ? 'text-red-400' : 'text-green-400'}">📲 Screenshot delivered securely.</span>`);
 }
 
 async function sendTelegramText(text) {
@@ -477,7 +477,7 @@ function startPremiumCycle(user_id_or_key, uid, name, expires_at, isNewLicenseSy
 // executePremiumLoop shifted logic into executeEngineWithRetry scheduleNextRun callback
 
 // ==========================================
-// PREMIUM UI, CUSTOM MODALS & FIXED GSAP (ORIGINAL)
+// PREMIUM UI, CUSTOM MODALS & FIXED GSAP (CYBERPUNK HACKER THEME)
 // ==========================================
 const uiHead = `
     <meta charset="UTF-8">
@@ -488,36 +488,37 @@ const uiHead = `
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
     <style>
-        :root { --bg-color: #060208; --text-color: #ffffff; --glass-bg: rgba(20, 10, 25, 0.45); --panel-glow: rgba(255, 107, 0, 0.15); --input-bg: rgba(255, 255, 255, 0.05); --input-border: rgba(255, 255, 255, 0.1); }
-        body.light-mode { --bg-color: #f4f4f8; --text-color: #1a1a24; --glass-bg: rgba(255, 255, 255, 0.95); --panel-glow: rgba(255, 0, 127, 0.15); --input-bg: rgba(0, 0, 0, 0.03); --input-border: rgba(0, 0, 0, 0.1); }
-        body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Outfit', sans-serif; overflow-x: hidden; transition: background 0.4s, color 0.4s; }
+        :root { --bg-color: #02060d; --text-color: #ffffff; --glass-bg: rgba(2, 6, 15, 0.65); --panel-glow: rgba(57, 255, 20, 0.15); --input-bg: rgba(0, 191, 255, 0.05); --input-border: rgba(57, 255, 20, 0.2); }
+        body.light-mode { --bg-color: #eef2f6; --text-color: #02060d; --glass-bg: rgba(255, 255, 255, 0.95); --panel-glow: rgba(0, 191, 255, 0.15); --input-bg: rgba(0, 0, 0, 0.03); --input-border: rgba(0, 0, 0, 0.1); }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Space Grotesk', 'Outfit', sans-serif; overflow-x: hidden; transition: background 0.4s, color 0.4s; }
         
-        .orb { position: fixed; border-radius: 50%; filter: blur(90px); opacity: 0.5; z-index: -1; pointer-events: none; }
-        .orb-purple { width: 50vw; height: 50vw; background: #8a2be2; top: -10%; left: -10%; }
-        .orb-orange { width: 40vw; height: 40vw; background: #ff6b00; bottom: -10%; right: -10%; }
+        .scanlines { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1)); background-size: 100% 4px; z-index: 999; pointer-events: none; opacity: 0.3; }
+
+        .orb { position: fixed; border-radius: 50%; filter: blur(90px); opacity: 0.4; z-index: -1; pointer-events: none; }
+        .orb-blue { width: 50vw; height: 50vw; background: #00bfff; top: -10%; left: -10%; }
+        .orb-green { width: 40vw; height: 40vw; background: #39ff14; bottom: -10%; right: -10%; }
         
-        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid var(--input-border); box-shadow: 0 15px 40px var(--panel-glow), inset 0 0 15px rgba(255,255,255,0.02); transition: transform 0.3s ease, box-shadow 0.3s ease; }
-        .glass-panel:hover { box-shadow: 0 20px 50px rgba(255, 107, 0, 0.25); }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid var(--input-border); box-shadow: 0 15px 40px var(--panel-glow), inset 0 0 15px rgba(57,255,20,0.02); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .glass-panel:hover { box-shadow: 0 20px 50px rgba(57, 255, 20, 0.25); }
         
-        .text-gradient { background: linear-gradient(to right, #ff6b00, #ff007f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .text-gradient { background: linear-gradient(to right, #00bfff, #39ff14); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .terminal { font-family: 'Space Grotesk', monospace; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #ff007f; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #39ff14; border-radius: 10px; }
         
-        input, select { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-color); transition: 0.3s; }
-        input:focus, select:focus { border-color: #ff6b00; outline: none; box-shadow: 0 0 20px rgba(255,107,0,0.4); }
+        input, select { background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-color); transition: 0.3s; font-family: 'Space Grotesk', monospace; }
+        input:focus, select:focus { border-color: #39ff14; outline: none; box-shadow: 0 0 20px rgba(57,255,20,0.4); }
         
         .menu-open { transform: translateX(0) scale(1) !important; opacity: 1 !important; pointer-events: auto !important; }
-        .btn-hover { transition: all 0.3s; }
-        .btn-hover:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(255, 0, 127, 0.5); }
+        .btn-hover { transition: all 0.3s; text-transform: uppercase; letter-spacing: 2px; }
+        .btn-hover:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(57, 255, 20, 0.5); }
     </style>
     <script>
-        // NAVIGATION FIXED: Removed beforeunload destroy session that caused refresh bug.
         document.addEventListener("DOMContentLoaded", () => {
             gsap.registerPlugin(ScrollTrigger);
-            gsap.to(".orb-purple", { x: 100, y: 50, duration: 8, repeat: -1, yoyo: true, ease: "sine.inOut" });
-            gsap.to(".orb-orange", { x: -100, y: -50, duration: 6, repeat: -1, yoyo: true, ease: "sine.inOut" });
+            gsap.to(".orb-blue", { x: 100, y: 50, duration: 8, repeat: -1, yoyo: true, ease: "sine.inOut" });
+            gsap.to(".orb-green", { x: -100, y: -50, duration: 6, repeat: -1, yoyo: true, ease: "sine.inOut" });
             gsap.from(".animate-box", { y: 40, opacity: 0, duration: 0.8, stagger: 0.1, ease: "power3.out" });
             
             if(localStorage.getItem('theme') === 'light') toggleTheme(true);
@@ -553,7 +554,7 @@ const uiHead = `
         function showSysModal(opts) {
             const m = document.getElementById('sys-modal');
             const b = document.getElementById('sys-modal-box');
-            document.getElementById('sys-modal-title').innerText = opts.title || 'NOTICE';
+            document.getElementById('sys-modal-title').innerText = opts.title || 'SYSTEM NOTICE';
             document.getElementById('sys-modal-msg').innerHTML = opts.msg || '';
             
             const inp = document.getElementById('sys-modal-input');
@@ -564,13 +565,13 @@ const uiHead = `
             btnContainer.innerHTML = '';
             
             if(opts.type === 'confirm') {
-                btnContainer.innerHTML = \`<button class="px-6 py-2.5 rounded-full bg-black/10 dark:bg-black/5 hover:bg-red-500 hover:text-white transition font-bold" onclick="closeSysModal(false)">Cancel</button>
-                                          <button class="px-6 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white transition font-bold shadow-lg shadow-orange-500/30" onclick="closeSysModal(true)">Confirm</button>\`;
+                btnContainer.innerHTML = \`<button class="px-6 py-2.5 rounded-sm bg-black/50 border border-red-500 hover:bg-red-500 hover:text-white transition font-bold terminal" onclick="closeSysModal(false)">[ ABORT ]</button>
+                                          <button class="px-6 py-2.5 rounded-sm bg-gradient-to-r from-cyan-500 to-green-500 text-black transition font-bold shadow-lg shadow-green-500/30 terminal" onclick="closeSysModal(true)">[ EXECUTE ]</button>\`;
             } else if(opts.type === 'prompt') {
-                btnContainer.innerHTML = \`<button class="px-6 py-2.5 rounded-full bg-black/10 dark:bg-black/5 hover:bg-red-500 hover:text-white transition font-bold" onclick="closeSysModal(null)">Cancel</button>
-                                          <button class="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white transition font-bold shadow-lg shadow-purple-500/30" onclick="closeSysModal(document.getElementById('sys-modal-input').value)">Save</button>\`;
+                btnContainer.innerHTML = \`<button class="px-6 py-2.5 rounded-sm bg-black/50 border border-red-500 hover:bg-red-500 hover:text-white transition font-bold terminal" onclick="closeSysModal(null)">[ CANCEL ]</button>
+                                          <button class="px-6 py-2.5 rounded-sm bg-gradient-to-r from-cyan-500 to-green-500 text-black transition font-bold shadow-lg shadow-green-500/30 terminal" onclick="closeSysModal(document.getElementById('sys-modal-input').value)">[ OVERRIDE ]</button>\`;
             } else {
-                btnContainer.innerHTML = \`<button class="px-8 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white transition font-bold shadow-lg shadow-orange-500/30" onclick="closeSysModal('ok')">OK</button>\`;
+                btnContainer.innerHTML = \`<button class="px-8 py-2.5 rounded-sm bg-gradient-to-r from-cyan-500 to-green-500 text-black transition font-bold shadow-lg shadow-green-500/30 terminal" onclick="closeSysModal('ok')">[ ACKNOWLEDGE ]</button>\`;
             }
             
             window.sysModalCallback = opts.cb || function(){};
@@ -585,56 +586,57 @@ const uiHead = `
         }
     </script>
     
-    <div id="sys-modal" class="fixed inset-0 bg-black/80 z-[300] hidden flex items-center justify-center backdrop-blur-md opacity-0 transition-opacity duration-300">
-        <div class="glass-panel p-8 rounded-[2rem] max-w-sm w-[90%] text-center transform scale-95 transition-transform duration-300 shadow-[0_0_50px_rgba(255,107,0,0.3)]" id="sys-modal-box">
-            <h3 id="sys-modal-title" class="text-xl font-black mb-2 text-gradient tracking-widest"></h3>
-            <p id="sys-modal-msg" class="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed text-inherit"></p>
-            <input type="text" id="sys-modal-input" class="hidden w-full p-4 mb-6 rounded-xl text-center font-mono border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 outline-none focus:border-orange-500 transition text-inherit" autocomplete="off" />
+    <div class="scanlines"></div>
+    <div id="sys-modal" class="fixed inset-0 bg-black/90 z-[300] hidden flex items-center justify-center backdrop-blur-md opacity-0 transition-opacity duration-300">
+        <div class="glass-panel p-8 rounded-lg max-w-sm w-[90%] text-center transform scale-95 transition-transform duration-300 border-2 border-[#39ff14] shadow-[0_0_50px_rgba(57,255,20,0.3)]" id="sys-modal-box">
+            <h3 id="sys-modal-title" class="text-xl font-black mb-2 text-gradient tracking-widest terminal"></h3>
+            <p id="sys-modal-msg" class="text-sm text-cyan-500 mb-6 leading-relaxed terminal"></p>
+            <input type="text" id="sys-modal-input" class="hidden w-full p-4 mb-6 rounded-sm text-center font-mono border border-[#00bfff] bg-black/50 text-[#39ff14] outline-none focus:border-[#39ff14] transition shadow-[inset_0_0_10px_rgba(0,191,255,0.2)]" autocomplete="off" />
             <div class="flex gap-3 justify-center" id="sys-modal-btns"></div>
         </div>
     </div>
 `;
 
-const getOrbs = () => `<div class="orb orb-purple"></div><div class="orb orb-orange"></div>`;
+const getOrbs = () => `<div class="orb orb-blue"></div><div class="orb orb-green"></div>`;
 
 const getFloatingHeader = (title, isAdmin) => `
     <div class="fixed top-4 w-full flex justify-center z-[110] px-4 pointer-events-none">
         <div class="flex justify-between items-center w-full max-w-5xl gap-2 md:gap-4 pointer-events-auto">
             
-            <button ${isAdmin ? `onclick="document.getElementById('avatar-upload').click()"` : ''} class="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 rounded-full glass-panel overflow-hidden flex items-center justify-center relative group shadow-[0_0_20px_rgba(138,43,226,0.4)]">
+            <button ${isAdmin ? `onclick="document.getElementById('avatar-upload').click()"` : ''} class="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 rounded-lg glass-panel border border-[#00bfff] overflow-hidden flex items-center justify-center relative group shadow-[0_0_20px_rgba(0,191,255,0.4)]">
                 <img id="admin-avatar" src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="w-full h-full object-cover">
-                ${isAdmin ? `<div class="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center"><i class="fa-solid fa-camera text-white"></i></div>` : ''}
+                ${isAdmin ? `<div class="absolute inset-0 bg-black/70 hidden group-hover:flex items-center justify-center"><i class="fa-solid fa-camera text-[#39ff14]"></i></div>` : ''}
             </button>
             ${isAdmin ? `<input type="file" id="avatar-upload" class="hidden" accept="image/*" onchange="uploadAvatar(this)">` : ''}
             
-            <div class="flex-1 max-w-md glass-panel rounded-full h-12 md:h-14 flex items-center justify-center overflow-hidden px-2">
-                <span class="font-black tracking-widest text-gradient text-sm md:text-xl uppercase truncate">${title}</span>
+            <div class="flex-1 max-w-md glass-panel border border-[#39ff14] rounded-lg h-12 md:h-14 flex items-center justify-center overflow-hidden px-2 shadow-[0_0_15px_rgba(57,255,20,0.2)]">
+                <span class="font-black tracking-widest text-gradient text-sm md:text-xl uppercase truncate terminal">${title}</span>
             </div>
 
-            <button onclick="document.getElementById('overlay-menu').classList.toggle('menu-open')" class="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 rounded-full glass-panel flex items-center justify-center text-orange-500 hover:text-[#ff007f] transition shadow-[0_0_20px_rgba(255,107,0,0.4)] cursor-pointer z-50">
+            <button onclick="document.getElementById('overlay-menu').classList.toggle('menu-open')" class="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 rounded-lg glass-panel flex items-center justify-center text-[#39ff14] border border-[#39ff14] hover:text-[#00bfff] hover:border-[#00bfff] transition shadow-[0_0_20px_rgba(57,255,20,0.4)] cursor-pointer z-50">
                 <i class="fa-solid fa-bars-staggered text-lg md:text-xl"></i>
             </button>
         </div>
     </div>
     
-    <div id="overlay-menu" class="fixed top-24 right-4 md:right-[10%] w-72 glass-panel z-[100] transform scale-95 opacity-0 pointer-events-none transition-all duration-300 ease-out flex flex-col p-6 rounded-[2rem]">
+    <div id="overlay-menu" class="fixed top-24 right-4 md:right-[10%] w-72 glass-panel z-[100] transform scale-95 opacity-0 pointer-events-none transition-all duration-300 ease-out flex flex-col p-6 rounded-lg border-2 border-[#00bfff]">
         <button onclick="document.getElementById('overlay-menu').classList.remove('menu-open')" class="absolute top-5 right-6 text-xl text-gray-500 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
-        <h4 class="font-black tracking-widest text-sm mb-4 border-b border-black/10 dark:border-white/10 pb-2">MENU</h4>
+        <h4 class="font-black tracking-widest text-sm mb-4 border-b border-[#00bfff]/50 pb-2 terminal text-[#00bfff]">ROOT_MENU</h4>
         
-        <div class="flex flex-col gap-3">
-            <a href="/" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-orange-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-house text-orange-500 text-xl"></i> Live View</a>
+        <div class="flex flex-col gap-3 terminal text-sm">
+            <a href="/" class="p-4 rounded-sm bg-black/50 border border-transparent hover:border-[#39ff14] font-bold flex items-center gap-4 transition text-[#39ff14]"><i class="fa-solid fa-network-wired text-xl"></i> NETWORK VIEW</a>
             
             ${isAdmin ? `
-            <a href="/admin" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-red-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-user-shield text-red-500 text-xl"></i> Admin Panel</a>
-            <a href="/logs" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-[#00ffcc]/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-terminal text-[#00ffcc] text-xl"></i> Master Logs</a>
-            <a href="/server_settings" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-yellow-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-gear text-yellow-500 text-xl"></i> Server Settings</a>
+            <a href="/admin" class="p-4 rounded-sm bg-black/50 border border-transparent hover:border-[#00bfff] font-bold flex items-center gap-4 transition text-[#00bfff]"><i class="fa-solid fa-terminal text-xl"></i> TERMINAL UI</a>
+            <a href="/logs" class="p-4 rounded-sm bg-black/50 border border-transparent hover:border-[#8a2be2] font-bold flex items-center gap-4 transition text-[#8a2be2]"><i class="fa-solid fa-microchip text-xl"></i> DATA LOGS</a>
+            <a href="/server_settings" class="p-4 rounded-sm bg-black/50 border border-transparent hover:border-yellow-400 font-bold flex items-center gap-4 transition text-yellow-400"><i class="fa-solid fa-shield-halved text-xl"></i> FIREWALL</a>
             ` : `
-            <a href="/login" class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-blue-500/10 font-bold flex items-center gap-4 transition text-inherit"><i class="fa-solid fa-right-to-bracket text-blue-500 text-xl"></i> Admin Login</a>
+            <a href="/login" class="p-4 rounded-sm bg-black/50 border border-transparent hover:border-[#00bfff] font-bold flex items-center gap-4 transition text-[#00bfff]"><i class="fa-solid fa-right-to-bracket text-xl"></i> ROOT LOGIN</a>
             `}
             
-            <div class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 hover:bg-purple-500/10 font-bold flex items-center gap-4 transition cursor-pointer text-inherit" onclick="toggleTheme()"><i class="fa-solid fa-moon text-[#8a2be2] text-xl" id="theme-icon"></i> Toggle Theme</div>
+            <div class="p-4 rounded-sm bg-black/50 border border-transparent hover:border-white font-bold flex items-center gap-4 transition cursor-pointer text-white" onclick="toggleTheme()"><i class="fa-solid fa-moon text-xl" id="theme-icon"></i> TOGGLE UI</div>
             
-            ${isAdmin ? `<a href="/logout" class="p-4 rounded-2xl text-red-500 font-bold flex items-center gap-4 mt-2 hover:bg-red-500/10 transition"><i class="fa-solid fa-power-off"></i> Logout</a>` : ''}
+            ${isAdmin ? `<a href="/logout" class="p-4 rounded-sm text-red-500 font-bold flex items-center gap-4 mt-2 border border-transparent hover:border-red-500 transition"><i class="fa-solid fa-power-off"></i> DISCONNECT</a>` : ''}
         </div>
     </div>
     
@@ -661,19 +663,19 @@ app.get('/', (req, res) => {
     const isAdmin = req.session.isAdmin;
     res.send(`
         <!DOCTYPE html>
-        <html lang="en"><head><title>ROMEO STATUS</title>${uiHead}</head>
+        <html lang="en"><head><title>SYSTEM STATUS</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
             ${getOrbs()}
-            ${getFloatingHeader('ROMEO LIVE', isAdmin)}
+            ${getFloatingHeader('NETWORK LIVE', isAdmin)}
             
-            <div class="w-full max-w-5xl glass-panel animate-box rounded-[2rem] p-6 md:p-8 mt-4">
-                <h3 class="text-[#ff007f] font-black mb-8 flex items-center text-lg tracking-widest drop-shadow-[0_0_10px_rgba(255,0,127,0.5)]">
-                    <i class="fa-solid fa-bolt text-orange-500 mr-3 animate-pulse text-2xl"></i> LIVE ENGINE QUEUE
+            <div class="w-full max-w-5xl glass-panel animate-box rounded-xl p-6 md:p-8 mt-4 border border-[#39ff14]">
+                <h3 class="text-[#39ff14] font-black mb-8 flex items-center text-lg tracking-widest drop-shadow-[0_0_10px_rgba(57,255,20,0.5)] terminal">
+                    <i class="fa-solid fa-bolt text-[#00bfff] mr-3 animate-pulse text-2xl"></i> ACTIVE_NODES
                 </h3>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead><tr class="text-gray-400 text-xs uppercase tracking-widest border-b border-black/10 dark:border-white/10"><th class="pb-4 pl-2">Target Info</th><th class="pb-4">Status / Time</th><th class="pb-4 text-center">Live Watch</th></tr></thead>
-                        <tbody id="status-body"><tr><td colspan="3" class="text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Loading Data...</td></tr></tbody>
+                    <table class="w-full text-left border-collapse terminal">
+                        <thead><tr class="text-[#00bfff] text-xs uppercase tracking-widest border-b border-[#00bfff]/30"><th class="pb-4 pl-2">Node_ID</th><th class="pb-4">Execution_Time</th><th class="pb-4 text-center">Intercept</th></tr></thead>
+                        <tbody id="status-body"><tr><td colspan="3" class="text-center py-10 text-gray-500"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Pinging Network...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -681,19 +683,19 @@ app.get('/', (req, res) => {
             ${isAdmin ? `
             <div id="preview-modal" class="fixed inset-0 bg-black/95 z-[200] hidden flex flex-col items-center justify-center opacity-0 transition-opacity duration-300">
                 <div class="absolute top-0 left-0 w-full p-6 flex justify-between items-center bg-gradient-to-b from-black to-transparent z-50">
-                    <div class="flex items-center gap-4 bg-white/5 px-6 py-3 rounded-full border border-white/10 backdrop-blur-md">
+                    <div class="flex items-center gap-4 bg-black/50 px-6 py-3 rounded-sm border border-[#39ff14] backdrop-blur-md">
                         <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_red]"></span>
-                        <span class="font-mono text-white font-bold tracking-widest">LIVE <span id="modal-uid" class="text-[#00ffcc] ml-2"></span></span>
+                        <span class="font-mono text-[#39ff14] font-bold tracking-widest terminal">SNOOPING <span id="modal-uid" class="text-[#00bfff] ml-2"></span></span>
                     </div>
-                    <button onclick="closePreview()" class="w-14 h-14 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-full flex items-center justify-center text-2xl border border-red-500/50 transition-all shadow-[0_0_20px_rgba(255,0,0,0.5)] z-50">
+                    <button onclick="closePreview()" class="w-14 h-14 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-sm flex items-center justify-center text-2xl border border-red-500/50 transition-all shadow-[0_0_20px_rgba(255,0,0,0.5)] z-50">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
-                <div class="relative w-full max-w-[360px] h-[640px] max-h-[85vh] rounded-2xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_50px_rgba(255,107,0,0.3)] bg-black flex items-center justify-center">
+                <div class="relative w-full max-w-[360px] h-[640px] max-h-[85vh] rounded-lg overflow-hidden border-2 border-[#00bfff] shadow-[0_0_50px_rgba(0,191,255,0.3)] bg-[#02060d] flex items-center justify-center">
                     <img id="live-screen" src="" class="absolute inset-0 w-full h-full object-cover hidden" />
                     <div id="no-signal" class="text-gray-500 flex flex-col items-center z-10">
-                        <i class="fa-solid fa-satellite-dish text-6xl mb-6 animate-pulse text-orange-500/50"></i>
-                        <span class="tracking-widest font-mono text-xl">AWAITING VIDEO SIGNAL...</span>
+                        <i class="fa-solid fa-satellite-dish text-6xl mb-6 animate-pulse text-[#39ff14]/50"></i>
+                        <span class="tracking-widest font-mono text-xl text-[#39ff14]">INTERCEPTING SIGNAL...</span>
                     </div>
                 </div>
             </div>` : ''}
@@ -707,24 +709,24 @@ app.get('/', (req, res) => {
                 socket.on('update_ui', function(data) {
                     const tbody = document.getElementById('status-body');
                     const keys = Object.keys(data);
-                    if(keys.length === 0) return tbody.innerHTML = '<tr><td colspan="3" class="text-center py-10 text-gray-500"><i class="fa-solid fa-ghost text-3xl mb-3 block"></i>No targets deployed.</td></tr>';
+                    if(keys.length === 0) return tbody.innerHTML = '<tr><td colspan="3" class="text-center py-10 text-gray-500"><i class="fa-solid fa-ghost text-3xl mb-3 block"></i>Network Empty.</td></tr>';
                     
                     let html = '';
                     for (let uid in data) {
                         let info = data[uid];
                         
-                        let previewBtn = '<button class="bg-black/5 dark:bg-white/5 text-gray-400 w-12 h-12 rounded-full flex items-center justify-center mx-auto cursor-not-allowed" title="Admin Only"><i class="fa-solid fa-lock"></i></button>';
+                        let previewBtn = '<button class="bg-black/50 border border-gray-600 text-gray-400 w-12 h-12 rounded-sm flex items-center justify-center mx-auto cursor-not-allowed" title="Root Access Required"><i class="fa-solid fa-lock"></i></button>';
                         
                         if (isAdmin) {
                             previewBtn = info.isRunning 
-                                ? \`<button onclick="openPreview('\${uid}')" class="bg-red-500/20 text-red-500 border border-red-500/50 w-12 h-12 rounded-full transition-all flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(255,0,60,0.6)] animate-pulse btn-hover"><i class="fa-solid fa-play ml-1"></i></button>\`
-                                : \`<button class="bg-black/5 dark:bg-white/5 text-gray-600 w-12 h-12 rounded-full flex items-center justify-center mx-auto cursor-not-allowed"><i class="fa-solid fa-eye-slash"></i></button>\`;
+                                ? \`<button onclick="openPreview('\${uid}')" class="bg-red-500/20 text-red-500 border border-red-500/50 w-12 h-12 rounded-sm transition-all flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(255,0,60,0.6)] animate-pulse btn-hover"><i class="fa-solid fa-eye ml-1"></i></button>\`
+                                : \`<button class="bg-black/50 border border-[#00bfff]/30 text-[#00bfff] w-12 h-12 rounded-sm flex items-center justify-center mx-auto cursor-not-allowed"><i class="fa-solid fa-eye-slash"></i></button>\`;
                         }
 
-                        let statusBadge = !info.autoActivate ? '<span class="text-red-500 text-[10px] ml-2 font-bold px-2 py-1 bg-red-500/10 rounded uppercase">Paused</span>' : '';
+                        let statusBadge = !info.autoActivate ? '<span class="text-red-500 text-[10px] ml-2 font-bold px-2 py-1 bg-red-500/10 border border-red-500/50 rounded-sm uppercase">Halted</span>' : '';
 
-                        html += '<tr class="border-b border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">' +
-                            '<td class="py-5 pl-2 font-bold text-lg text-inherit">' + info.name + statusBadge + '<br><span class="text-[11px] font-mono bg-black/5 dark:bg-white/10 text-orange-500 dark:text-orange-400 px-3 py-1 rounded-md mt-2 inline-block">' + uid + '</span></td>' +
+                        html += '<tr class="border-b border-[#00bfff]/10 hover:bg-[#00bfff]/5 transition-colors">' +
+                            '<td class="py-5 pl-2 font-bold text-lg text-[#39ff14]">' + info.name + statusBadge + '<br><span class="text-[11px] font-mono border border-[#00bfff]/50 text-[#00bfff] bg-black/50 px-3 py-1 rounded-sm mt-2 inline-block">' + uid + '</span></td>' +
                             '<td class="py-5 font-mono font-bold text-[15px]">' + info.remaining + '</td>' +
                             '<td class="py-5">' + previewBtn + '</td>' +
                         '</tr>';
@@ -768,43 +770,43 @@ app.get('/login', (req, res) => {
     if(req.session.isAdmin) return res.redirect('/admin');
     res.send(`
         <!DOCTYPE html>
-        <html lang="en"><head><title>System Auth</title>${uiHead}</head>
+        <html lang="en"><head><title>ROOT AUTH</title>${uiHead}</head>
         <body class="flex items-center justify-center min-h-screen relative">
             ${getOrbs()}
-            <div id="auth-panel" class="glass-panel animate-box p-10 rounded-[3rem] w-[90%] max-w-md text-center z-10">
-                <div class="w-24 h-24 bg-gradient-to-br from-[#ff6b00] to-[#ff007f] rounded-full mx-auto mb-6 flex items-center justify-center shadow-[0_0_30px_rgba(255,0,127,0.6)]">
-                    <i class="fa-solid fa-fingerprint text-4xl text-white"></i>
+            <div id="auth-panel" class="glass-panel animate-box p-10 rounded-lg border-2 border-[#39ff14] w-[90%] max-w-md text-center z-10 shadow-[0_0_40px_rgba(57,255,20,0.2)]">
+                <div class="w-24 h-24 bg-gradient-to-br from-[#00bfff] to-[#39ff14] rounded-sm mx-auto mb-6 flex items-center justify-center shadow-[0_0_30px_rgba(57,255,20,0.6)]">
+                    <i class="fa-solid fa-terminal text-4xl text-black"></i>
                 </div>
-                <h2 class="text-2xl font-black mb-8 tracking-widest text-gradient">ADMIN AUTH</h2>
+                <h2 class="text-2xl font-black mb-8 tracking-widest text-gradient terminal">ROOT ACCESS</h2>
                 <form action="/login" method="POST" class="flex flex-col gap-5">
-                    <input type="password" name="password" placeholder="Master Password" required class="w-full p-4 rounded-full text-center tracking-widest"/>
-                    <button type="submit" class="btn-hover w-full p-4 rounded-full font-black tracking-widest bg-gradient-to-r from-[#ff6b00] to-[#ff007f] text-white">ENTER <i class="fa-solid fa-arrow-right ml-2"></i></button>
+                    <input type="password" name="password" placeholder="ENTER PASSPHRASE" required class="w-full p-4 rounded-sm text-center tracking-widest bg-black/50 border-[#00bfff] text-[#39ff14]"/>
+                    <button type="submit" class="btn-hover w-full p-4 rounded-sm font-black tracking-widest bg-gradient-to-r from-[#00bfff] to-[#39ff14] text-black terminal">EXECUTE_LOGIN <i class="fa-solid fa-arrow-right ml-2"></i></button>
                 </form>
-                <div class="mt-6 text-sm font-bold text-gray-500 cursor-pointer hover:text-orange-500 transition" onclick="showForgot()">Forgot Password?</div>
+                <div class="mt-6 text-sm font-bold text-[#00bfff] cursor-pointer hover:text-[#39ff14] transition terminal" onclick="showForgot()">[ FORGOT_KEY? ]</div>
             </div>
 
-            <div id="forgot-panel" class="glass-panel p-10 rounded-[3rem] w-[90%] max-w-md text-center z-10 hidden absolute">
-                <h2 class="text-xl font-black mb-4 tracking-widest text-gradient">RESET UPLINK</h2>
-                <p class="text-xs text-gray-500 mb-6">OTP will be sent to registered Telegram Bot</p>
-                <button onclick="sendOTP()" id="otp-btn" class="w-full p-4 mb-4 rounded-full font-black tracking-widest border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white transition">SEND OTP</button>
+            <div id="forgot-panel" class="glass-panel p-10 rounded-lg border-2 border-[#00bfff] w-[90%] max-w-md text-center z-10 hidden absolute shadow-[0_0_40px_rgba(0,191,255,0.2)]">
+                <h2 class="text-xl font-black mb-4 tracking-widest text-gradient terminal">BYPASS SEQUENCE</h2>
+                <p class="text-xs text-[#00bfff] mb-6 terminal">OTP routed to master comms.</p>
+                <button onclick="sendOTP()" id="otp-btn" class="w-full p-4 mb-4 rounded-sm font-black tracking-widest border border-[#39ff14] text-[#39ff14] hover:bg-[#39ff14] hover:text-black transition terminal">TRANSMIT OTP</button>
                 <form id="reset-form" class="hidden flex flex-col gap-4" onsubmit="event.preventDefault(); resetPass();">
-                    <input type="text" id="otp-code" placeholder="Enter OTP" required class="w-full p-4 rounded-full text-center tracking-widest font-mono"/>
-                    <input type="password" id="new-pass" placeholder="New Password" required class="w-full p-4 rounded-full text-center tracking-widest"/>
-                    <button type="submit" class="btn-hover w-full p-4 rounded-full font-black tracking-widest bg-gradient-to-r from-[#8a2be2] to-[#ff007f] text-white">SAVE NEW PASSWORD</button>
+                    <input type="text" id="otp-code" placeholder="ENTER OTP" required class="w-full p-4 rounded-sm text-center tracking-widest font-mono bg-black/50 border-[#00bfff] text-[#39ff14]"/>
+                    <input type="password" id="new-pass" placeholder="NEW PASSPHRASE" required class="w-full p-4 rounded-sm text-center tracking-widest bg-black/50 border-[#00bfff] text-[#39ff14]"/>
+                    <button type="submit" class="btn-hover w-full p-4 rounded-sm font-black tracking-widest bg-gradient-to-r from-[#8a2be2] to-[#00bfff] text-white terminal">UPDATE_KEY</button>
                 </form>
-                <div class="mt-6 text-sm font-bold text-gray-500 cursor-pointer hover:text-orange-500" onclick="hideForgot()"><i class="fa-solid fa-arrow-left"></i> Back to Login</div>
+                <div class="mt-6 text-sm font-bold text-[#00bfff] cursor-pointer hover:text-red-500 terminal transition" onclick="hideForgot()"><i class="fa-solid fa-arrow-left"></i> [ ABORT ]</div>
             </div>
             
             <script>
                 if(localStorage.getItem('authErr')) {
-                    showSysModal({title: "DENIED", msg: "Invalid Master Password!", type: "alert"});
+                    showSysModal({title: "ACCESS DENIED", msg: "Invalid Passphrase Detected!", type: "alert"});
                     localStorage.removeItem('authErr');
                 }
                 function showForgot() { document.getElementById('auth-panel').classList.add('hidden'); document.getElementById('forgot-panel').classList.remove('hidden'); }
                 function hideForgot() { document.getElementById('forgot-panel').classList.add('hidden'); document.getElementById('auth-panel').classList.remove('hidden'); }
                 
                 async function sendOTP() {
-                    document.getElementById('otp-btn').innerText = "SENDING...";
+                    document.getElementById('otp-btn').innerText = "TRANSMITTING...";
                     await fetch('/api/auth/forgot', {method: 'POST'});
                     document.getElementById('otp-btn').classList.add('hidden');
                     document.getElementById('reset-form').classList.remove('hidden');
@@ -816,9 +818,9 @@ app.get('/login', (req, res) => {
                     const res = await fetch('/api/auth/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({otp, pass})});
                     const data = await res.json();
                     if(data.success) { 
-                        showSysModal({title:"SUCCESS", msg:"Password Reset Successful!", cb: () => window.location.reload() });
+                        showSysModal({title:"SUCCESS", msg:"Encryption Key Updated!", cb: () => window.location.reload() });
                     } else { 
-                        showSysModal({title:"ERROR", msg:"Invalid OTP!"}); 
+                        showSysModal({title:"ERROR", msg:"Invalid OTP Token!"}); 
                     }
                 }
             </script>
@@ -857,22 +859,22 @@ app.get('/admin', async (req, res) => {
     let usersHtml = '';
     if (users && users.length > 0) {
         users.forEach(u => {
-            let activeColor = u.auto_activate ? 'text-green-500' : 'text-red-500';
+            let activeColor = u.auto_activate ? 'text-[#39ff14] border-[#39ff14]/50' : 'text-red-500 border-red-500/50';
             let activeIcon = u.auto_activate ? 'fa-toggle-on' : 'fa-toggle-off';
 
-            usersHtml += `<div class="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/5 p-5 rounded-[1.5rem] flex flex-col md:flex-row justify-between items-center gap-4 mb-4 transition hover:border-[#ff007f]/50">
+            usersHtml += `<div class="bg-black/50 border border-[#00bfff]/30 p-5 rounded-lg flex flex-col md:flex-row justify-between items-center gap-4 mb-4 transition hover:border-[#39ff14]">
                 <div class="text-center md:text-left text-inherit">
-                    <b class="text-lg"><i class="fa-solid fa-user-ninja text-[#8a2be2] mr-2"></i>${u.name}</b> <br> 
+                    <b class="text-lg terminal text-[#00bfff]"><i class="fa-solid fa-network-wired text-[#8a2be2] mr-2"></i>${u.name}</b> <br> 
                     <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-2">
-                        <span class="text-xs font-mono text-[#00ffcc] dark:text-teal-500 bg-black/10 dark:bg-white/5 px-2 py-1 rounded"><i class="fa-solid fa-hashtag mr-1"></i>${u.uid}</span>
-                        <span class="text-xs font-mono text-orange-600 dark:text-orange-400 bg-black/10 dark:bg-white/5 px-2 py-1 rounded flex items-center cursor-pointer hover:bg-orange-500/20 transition" onclick="editTime('${u.uid}', ${u.interval_mins})">
+                        <span class="text-xs font-mono text-[#39ff14] bg-black/50 border border-[#39ff14]/30 px-2 py-1 rounded-sm"><i class="fa-solid fa-hashtag mr-1"></i>${u.uid}</span>
+                        <span class="text-xs font-mono text-yellow-400 bg-black/50 border border-yellow-400/30 px-2 py-1 rounded-sm flex items-center cursor-pointer hover:bg-yellow-400/20 transition" onclick="editTime('${u.uid}', ${u.interval_mins})">
                             <i class="fa-regular fa-clock mr-1"></i>${u.interval_mins}m <i class="fa-solid fa-pen ml-2 text-[10px] opacity-70"></i>
                         </span>
                     </div>
                 </div>
                 <div class="flex gap-2">
-                    <button class="bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 ${activeColor} px-4 py-3 rounded-xl transition font-bold text-xs flex items-center btn-hover" onclick="toggleAuto('${u.uid}', ${!u.auto_activate})"><i class="fa-solid ${activeIcon} mr-2 text-lg"></i> Auto</button>
-                    <button class="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-3 rounded-xl transition btn-hover" onclick="delUser('${u.id}', '${u.uid}')"><i class="fa-solid fa-trash-can"></i></button>
+                    <button class="bg-black/50 border ${activeColor} hover:bg-[#39ff14]/20 px-4 py-3 rounded-sm transition font-bold text-xs flex items-center btn-hover terminal" onclick="toggleAuto('${u.uid}', ${!u.auto_activate})"><i class="fa-solid ${activeIcon} mr-2 text-lg"></i> AUTO</button>
+                    <button class="bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500 hover:text-white px-4 py-3 rounded-sm transition btn-hover" onclick="delUser('${u.id}', '${u.uid}')"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
             </div>`;
         });
@@ -883,13 +885,13 @@ app.get('/admin', async (req, res) => {
         licenses.forEach(l => {
             const timeDiff = new Date(l.expires_at).getTime() - Date.now();
             const daysLeft = timeDiff > 0 ? (timeDiff / (1000 * 60 * 60 * 24)).toFixed(1) + 'd' : '<span class="text-red-500">Exp</span>';
-            const bindInfo = l.ip_address ? `<span class="text-green-500 font-mono text-[10px]" title="${l.device_fingerprint}">${l.ip_address}</span>` : '<span class="text-gray-500 text-[10px]">Unbound</span>';
-            licensesHtml += `<div class="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/5 p-4 rounded-[1.5rem] flex flex-col gap-2 mb-3 hover:border-[#00ffcc]/50 transition">
-                <div class="flex justify-between items-center"><b class="font-mono text-orange-500 text-sm">${l.license_key}</b> <span class="uppercase text-[10px] font-bold bg-white/10 px-2 rounded">${l.plan_type}</span></div>
+            const bindInfo = l.ip_address ? `<span class="text-[#39ff14] font-mono text-[10px]" title="${l.device_fingerprint}">${l.ip_address}</span>` : '<span class="text-gray-500 text-[10px]">Unbound</span>';
+            licensesHtml += `<div class="bg-black/50 border border-[#8a2be2]/30 p-4 rounded-lg flex flex-col gap-2 mb-3 hover:border-[#8a2be2] transition">
+                <div class="flex justify-between items-center"><b class="font-mono text-[#00bfff] text-sm">${l.license_key}</b> <span class="uppercase text-[10px] font-bold bg-[#8a2be2]/20 text-[#8a2be2] px-2 rounded-sm border border-[#8a2be2]/50">${l.plan_type}</span></div>
                 <div class="flex justify-between text-xs text-gray-400"><span>Remaining: ${daysLeft}</span> <span>IP: ${bindInfo}</span></div>
                 <div class="flex gap-2 mt-2 justify-end">
-                    <button onclick="flushDevice('${l.license_key}')" class="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded-lg text-xs hover:bg-yellow-500 hover:text-black transition" title="Logout Device"><i class="fa-solid fa-unlock"></i> Flush</button>
-                    <button onclick="delLicense('${l.license_key}')" class="bg-red-500/20 text-red-500 px-3 py-1 rounded-lg text-xs hover:bg-red-500 hover:text-white transition"><i class="fa-solid fa-trash"></i></button>
+                    <button onclick="flushDevice('${l.license_key}')" class="bg-yellow-500/10 border border-yellow-500/50 text-yellow-500 px-3 py-1 rounded-sm text-xs hover:bg-yellow-500 hover:text-black transition" title="Logout Device"><i class="fa-solid fa-unlock"></i> FLUSH</button>
+                    <button onclick="delLicense('${l.license_key}')" class="bg-red-500/10 border border-red-500/50 text-red-500 px-3 py-1 rounded-sm text-xs hover:bg-red-500 hover:text-white transition"><i class="fa-solid fa-trash"></i></button>
                 </div>
             </div>`;
         });
@@ -897,49 +899,49 @@ app.get('/admin', async (req, res) => {
 
     res.send(`
         <!DOCTYPE html>
-        <html lang="en"><head><title>Admin Panel</title>${uiHead}</head>
+        <html lang="en"><head><title>TERMINAL UI</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
             ${getOrbs()}
-            ${getFloatingHeader('CONTROL CENTER', true)}
+            ${getFloatingHeader('COMMAND_CENTER', true)}
             
             <div class="w-full max-w-7xl mt-4">
                 <div class="flex justify-start items-center mb-6 pl-2 animate-box">
-                    <button onclick="changeAdminPass()" class="btn-hover bg-gradient-to-r from-purple-500 to-[#ff007f] text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-purple-500/30 transition text-sm flex items-center">
-                        <i class="fa-solid fa-key mr-2"></i> Change Password
+                    <button onclick="changeAdminPass()" class="btn-hover border border-[#00bfff] bg-black/50 text-[#00bfff] hover:bg-[#00bfff] hover:text-black px-6 py-2.5 rounded-sm font-bold shadow-[0_0_15px_rgba(0,191,255,0.3)] transition text-sm flex items-center terminal">
+                        <i class="fa-solid fa-key mr-2"></i> UPDATE_KEY
                     </button>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="flex flex-col gap-6">
-                        <div class="glass-panel animate-box rounded-[2.5rem] p-6 h-fit">
-                            <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-plus-circle text-[#00ffcc] mr-2"></i>DEPLOY ADMIN TARGET</h3>
-                            <input type="text" id="name" placeholder="Alias Name" class="w-full p-3 mb-3 rounded-xl text-center outline-none focus:border-[#00ffcc] border border-transparent bg-black/10" />
-                            <input type="text" id="uid" placeholder="Target UID" class="w-full p-3 mb-3 rounded-xl font-mono text-center outline-none focus:border-[#00ffcc] border border-transparent bg-black/10" />
-                            <input type="number" id="interval" placeholder="Interval (Mins) Default: 40" class="w-full p-3 mb-4 rounded-xl font-mono text-center outline-none focus:border-[#00ffcc] border border-transparent bg-black/10" />
-                            <button onclick="addUser()" class="btn-hover w-full p-3 rounded-xl font-black tracking-widest bg-gradient-to-r from-[#ff6b00] to-[#ff007f] text-white"><i class="fa-solid fa-rocket mr-2"></i> DEPLOY</button>
+                        <div class="glass-panel animate-box rounded-lg border-2 border-[#39ff14] p-6 h-fit">
+                            <h3 class="text-sm font-black mb-4 tracking-widest border-b border-[#39ff14]/30 pb-2 text-[#39ff14] terminal"><i class="fa-solid fa-plus-circle mr-2"></i>INJECT_NODE</h3>
+                            <input type="text" id="name" placeholder="Alias Name" class="w-full p-3 mb-3 rounded-sm text-center outline-none bg-black/50 border border-[#00bfff] text-[#00bfff]" />
+                            <input type="text" id="uid" placeholder="Target UID" class="w-full p-3 mb-3 rounded-sm font-mono text-center outline-none bg-black/50 border border-[#00bfff] text-[#00bfff]" />
+                            <input type="number" id="interval" placeholder="Interval (Mins) Def: 40" class="w-full p-3 mb-4 rounded-sm font-mono text-center outline-none bg-black/50 border border-[#00bfff] text-[#00bfff]" />
+                            <button onclick="addUser()" class="btn-hover w-full p-3 rounded-sm font-black tracking-widest bg-gradient-to-r from-[#00bfff] to-[#39ff14] text-black terminal"><i class="fa-solid fa-bolt mr-2"></i> DEPLOY</button>
                         </div>
                         
-                        <div class="glass-panel animate-box rounded-[2.5rem] p-6 h-fit">
-                            <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-key text-yellow-500 mr-2"></i>GENERATE LICENSE</h3>
-                            <select id="plan_type" class="w-full p-3 mb-3 rounded-xl text-center font-bold outline-none border border-transparent bg-black/10 text-white">
+                        <div class="glass-panel animate-box rounded-lg border-2 border-[#8a2be2] p-6 h-fit">
+                            <h3 class="text-sm font-black mb-4 tracking-widest border-b border-[#8a2be2]/30 pb-2 text-[#8a2be2] terminal"><i class="fa-solid fa-key mr-2"></i>GEN_LICENSE</h3>
+                            <select id="plan_type" class="w-full p-3 mb-3 rounded-sm text-center font-bold outline-none border border-[#8a2be2] bg-black/50 text-[#00bfff] terminal">
                                 <option value="trial">Trial (1 Day)</option>
                                 <option value="weekly">Weekly (7 Days)</option>
                                 <option value="monthly">Monthly (30 Days)</option>
                                 <option value="superuser">Super User (10 UIDs)</option>
                             </select>
-                            <input type="number" step="0.1" id="plan_days" placeholder="Custom Days Override" class="w-full p-3 mb-4 rounded-xl font-mono text-center outline-none focus:border-yellow-500 border border-transparent bg-black/10" />
-                            <button onclick="genLicense()" class="btn-hover w-full p-3 rounded-xl font-black tracking-widest bg-gradient-to-r from-purple-500 to-blue-500 text-white"><i class="fa-solid fa-certificate mr-2"></i> ISSUE KEY</button>
+                            <input type="number" step="0.1" id="plan_days" placeholder="Custom Days Override" class="w-full p-3 mb-4 rounded-sm font-mono text-center outline-none border border-[#8a2be2] bg-black/50 text-[#00bfff]" />
+                            <button onclick="genLicense()" class="btn-hover w-full p-3 rounded-sm font-black tracking-widest bg-gradient-to-r from-[#8a2be2] to-[#00bfff] text-white terminal"><i class="fa-solid fa-certificate mr-2"></i> ISSUE_KEY</button>
                         </div>
                     </div>
 
-                    <div class="glass-panel animate-box rounded-[2.5rem] p-6 md:col-span-1">
-                        <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-server text-[#ff007f] mr-2"></i>ADMIN TARGETS</h3>
-                        <div class="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">${usersHtml || '<div class="text-center py-10 opacity-50"><i class="fa-solid fa-box-open text-4xl mb-3 block"></i>No targets deployed.</div>'}</div>
+                    <div class="glass-panel animate-box rounded-lg border border-[#00bfff]/50 p-6 md:col-span-1">
+                        <h3 class="text-sm font-black mb-4 tracking-widest border-b border-[#00bfff]/30 pb-2 text-[#00bfff] terminal"><i class="fa-solid fa-server mr-2"></i>ACTIVE_NODES</h3>
+                        <div class="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">${usersHtml || '<div class="text-center py-10 opacity-50"><i class="fa-solid fa-box-open text-4xl mb-3 block text-[#00bfff]"></i>No nodes deployed.</div>'}</div>
                     </div>
 
-                    <div class="glass-panel animate-box rounded-[2.5rem] p-6 md:col-span-1">
-                        <h3 class="text-sm font-black mb-4 tracking-widest border-b border-black/10 dark:border-white/10 pb-2 text-inherit"><i class="fa-solid fa-users text-orange-500 mr-2"></i>ACTIVE LICENSES</h3>
-                        <div class="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">${licensesHtml || '<div class="text-center py-10 opacity-50"><i class="fa-solid fa-ghost text-4xl mb-3 block"></i>No licenses found.</div>'}</div>
+                    <div class="glass-panel animate-box rounded-lg border border-[#8a2be2]/50 p-6 md:col-span-1">
+                        <h3 class="text-sm font-black mb-4 tracking-widest border-b border-[#8a2be2]/30 pb-2 text-[#8a2be2] terminal"><i class="fa-solid fa-users mr-2"></i>LICENSE_DB</h3>
+                        <div class="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">${licensesHtml || '<div class="text-center py-10 opacity-50"><i class="fa-solid fa-ghost text-4xl mb-3 block text-[#8a2be2]"></i>No licenses found.</div>'}</div>
                     </div>
                 </div>
             </div>
@@ -948,12 +950,12 @@ app.get('/admin', async (req, res) => {
                     const name = document.getElementById('name').value;
                     const uid = document.getElementById('uid').value;
                     const interval = document.getElementById('interval').value || 40;
-                    if(!name || !uid) return showSysModal({msg: "Fill required fields!"});
+                    if(!name || !uid) return showSysModal({msg: "Parameters missing!"});
                     await fetch('/api/target/add', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, uid, interval}) });
                     window.location.reload();
                 }
                 function delUser(id, uid) {
-                    showSysModal({title: "WARNING", msg: "Are you sure you want to delete this target?", type: "confirm", cb: async (res) => {
+                    showSysModal({title: "WARNING", msg: "Purge this node from system?", type: "confirm", cb: async (res) => {
                         if(res) {
                             await fetch('/api/target/del', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, uid}) });
                             window.location.reload();
@@ -965,7 +967,7 @@ app.get('/admin', async (req, res) => {
                     window.location.reload();
                 }
                 function editTime(uid, oldTime) {
-                    showSysModal({title: "EDIT INTERVAL", msg: "Enter new interval (minutes):", type: "prompt", default: oldTime, cb: async (newTime) => {
+                    showSysModal({title: "OVERRIDE TIMING", msg: "Enter new interval (mins):", type: "prompt", default: oldTime, cb: async (newTime) => {
                         if(newTime && !isNaN(newTime) && newTime != oldTime) {
                             await fetch('/api/target/edit_time', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({uid, interval: parseInt(newTime)}) });
                             window.location.reload();
@@ -973,11 +975,11 @@ app.get('/admin', async (req, res) => {
                     }});
                 }
                 function changeAdminPass() {
-                    showSysModal({title: "SECURITY", msg: "Enter New Admin Password:", type: "prompt", cb: async (newPass) => {
+                    showSysModal({title: "SECURITY", msg: "Enter New Encryption Key:", type: "prompt", cb: async (newPass) => {
                         if(newPass && newPass.length >= 6) {
                             await fetch('/api/auth/change_pass', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({newPass}) });
-                            showSysModal({title: "SUCCESS", msg: "Password Updated Successfully!"});
-                        } else if (newPass) showSysModal({title: "ERROR", msg: "Password too short!"});
+                            showSysModal({title: "SUCCESS", msg: "Key Updated Successfully!"});
+                        } else if (newPass) showSysModal({title: "ERROR", msg: "Key complexity too low!"});
                     }});
                 }
                 
@@ -992,7 +994,7 @@ app.get('/admin', async (req, res) => {
                     window.location.reload();
                 }
                 async function delLicense(key) {
-                    if(confirm("Delete this license completely?")) {
+                    if(confirm("Purge license from DB?")) {
                         await fetch('/api/admin/purge_key', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key}) });
                         window.location.reload();
                     }
@@ -1056,37 +1058,37 @@ app.get('/server_settings', (req, res) => {
     if (!req.session.isAdmin) return res.redirect('/login');
     res.send(`
         <!DOCTYPE html>
-        <html lang="en"><head><title>Server Settings</title>${uiHead}</head>
+        <html lang="en"><head><title>FIREWALL SETTINGS</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
             ${getOrbs()}
-            ${getFloatingHeader('SERVER SETTINGS', true)}
+            ${getFloatingHeader('FIREWALL_CONFIG', true)}
             
             <div class="w-full max-w-7xl mt-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="glass-panel animate-box rounded-[2rem] p-6 bg-black/90 dark:bg-black/80 flex flex-col">
-                    <h3 class="font-black tracking-widest text-yellow-500 text-sm mb-4 border-b border-white/10 pb-2"><i class="fa-solid fa-shield-halved mr-2"></i>CORS MANAGEMENT</h3>
+                <div class="glass-panel animate-box rounded-lg border border-yellow-400 p-6 bg-[#02060d]/90 flex flex-col">
+                    <h3 class="font-black tracking-widest text-yellow-500 text-sm mb-4 border-b border-yellow-500/30 pb-2 terminal"><i class="fa-solid fa-shield-halved mr-2"></i>CORS_RULES</h3>
                     
-                    <div class="flex items-center justify-between bg-white/5 p-4 rounded-xl mb-4">
+                    <div class="flex items-center justify-between bg-black/50 border border-[#00bfff]/30 p-4 rounded-sm mb-4">
                         <div>
-                            <div class="font-bold text-white text-sm">Allow All CORS (*)</div>
-                            <div class="text-[10px] text-gray-400">Warning: Opens API to all domains if active.</div>
+                            <div class="font-bold text-[#00bfff] text-sm terminal">ALLOW_ALL_ORIGINS (*)</div>
+                            <div class="text-[10px] text-gray-400">Warning: Opens API to external networks.</div>
                         </div>
-                        <button id="cors-toggle" onclick="toggleCors()" class="px-4 py-2 rounded-lg font-bold text-xs transition ${ALLOW_ALL_CORS ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
-                            ${ALLOW_ALL_CORS ? 'ON' : 'OFF'}
+                        <button id="cors-toggle" onclick="toggleCors()" class="px-4 py-2 rounded-sm font-bold text-xs border transition terminal ${ALLOW_ALL_CORS ? 'bg-[#39ff14]/10 text-[#39ff14] border-[#39ff14]' : 'bg-red-500/10 text-red-500 border-red-500'}">
+                            ${ALLOW_ALL_CORS ? 'ACTIVE' : 'BLOCKED'}
                         </button>
                     </div>
 
                     <div class="flex gap-2 mb-4">
-                        <input type="text" id="new-cors-url" placeholder="https://example.com" class="flex-1 p-3 rounded-xl font-mono text-xs outline-none bg-black/50 border border-white/10 text-white" />
-                        <button onclick="addCorsUrl()" class="px-4 bg-yellow-500 hover:bg-yellow-600 text-black font-bold rounded-xl text-xs transition"><i class="fa-solid fa-plus"></i> ADD</button>
+                        <input type="text" id="new-cors-url" placeholder="https://domain.com" class="flex-1 p-3 rounded-sm font-mono text-xs outline-none bg-black/50 border border-[#00bfff]/50 text-[#00bfff]" />
+                        <button onclick="addCorsUrl()" class="px-4 border border-yellow-500 bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-black font-bold rounded-sm text-xs transition terminal"><i class="fa-solid fa-plus"></i> INJECT</button>
                     </div>
 
                     <div id="cors-list" class="flex-1 overflow-y-auto space-y-2 max-h-[300px] custom-scrollbar"></div>
                 </div>
 
-                <div class="glass-panel animate-box rounded-[2rem] p-6 bg-black/90 dark:bg-black/80 flex flex-col h-[60vh]">
-                    <div class="flex justify-between items-center border-b border-white/10 pb-2 mb-4">
-                        <h3 class="font-black tracking-widest text-[#00ffcc] text-sm"><i class="fa-solid fa-route mr-2"></i>API ROUTE LOGS</h3>
-                        <button onclick="fetchApiLogs()" class="text-xs bg-white/10 hover:bg-[#00ffcc] hover:text-black text-white px-3 py-1 rounded transition"><i class="fa-solid fa-rotate-right mr-1"></i> Refresh</button>
+                <div class="glass-panel animate-box rounded-lg border border-[#00bfff] p-6 bg-[#02060d]/90 flex flex-col h-[60vh]">
+                    <div class="flex justify-between items-center border-b border-[#00bfff]/30 pb-2 mb-4">
+                        <h3 class="font-black tracking-widest text-[#00bfff] text-sm terminal"><i class="fa-solid fa-route mr-2"></i>TRAFFIC_LOGS</h3>
+                        <button onclick="fetchApiLogs()" class="text-xs border border-[#39ff14] bg-[#39ff14]/10 hover:bg-[#39ff14] hover:text-black text-[#39ff14] px-3 py-1 rounded-sm transition terminal"><i class="fa-solid fa-rotate-right mr-1"></i> SYNC</button>
                     </div>
                     <div id="api-logs-container" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar text-xs"></div>
                 </div>
@@ -1101,16 +1103,16 @@ app.get('/server_settings', (req, res) => {
                 
                 function renderCorsList(urls) {
                     const list = document.getElementById('cors-list');
-                    if(urls.length === 0) return list.innerHTML = '<div class="text-center text-gray-500 py-4 text-xs">No specific URLs added.</div>';
-                    list.innerHTML = urls.map(u => \`<div class="flex justify-between items-center bg-white/5 p-3 rounded-lg border border-white/5 hover:border-yellow-500/30 transition">
-                        <span class="font-mono text-gray-300 text-xs">\${u}</span>
+                    if(urls.length === 0) return list.innerHTML = '<div class="text-center text-gray-500 py-4 text-xs terminal">No specific domains whitelisted.</div>';
+                    list.innerHTML = urls.map(u => \`<div class="flex justify-between items-center bg-black/50 p-3 rounded-sm border border-[#00bfff]/30 hover:border-yellow-500 transition">
+                        <span class="font-mono text-[#00bfff] text-xs">\${u}</span>
                         <button onclick="removeCorsUrl('\${u}')" class="text-red-400 hover:text-red-500"><i class="fa-solid fa-trash"></i></button>
                     </div>\`).join('');
                 }
 
                 async function toggleCors() {
                     const btn = document.getElementById('cors-toggle');
-                    const isCurrentlyOn = btn.innerText.includes('ON');
+                    const isCurrentlyOn = btn.innerText.includes('ACTIVE');
                     const res = await fetch('/api/system/cors_toggle', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: !isCurrentlyOn}) });
                     const data = await res.json();
                     if(data.success) window.location.reload();
@@ -1133,18 +1135,18 @@ app.get('/server_settings', (req, res) => {
                     const res = await fetch('/api/system/api_logs_fetch');
                     const data = await res.json();
                     const container = document.getElementById('api-logs-container');
-                    if(data.logs.length === 0) return container.innerHTML = '<div class="text-center text-gray-500 py-10">No API activity yet.</div>';
+                    if(data.logs.length === 0) return container.innerHTML = '<div class="text-center text-gray-500 py-10 terminal">No traffic detected.</div>';
                     
                     container.innerHTML = data.logs.map(log => {
-                        const statusColor = log.status >= 400 ? 'text-red-400' : 'text-green-400';
-                        return \`<div class="bg-black/50 p-3 rounded-xl border border-white/5">
+                        const statusColor = log.status >= 400 ? 'text-red-400' : 'text-[#39ff14]';
+                        return \`<div class="bg-black/50 p-3 rounded-sm border border-[#00bfff]/30">
                             <div class="flex justify-between mb-2">
-                                <span class="font-bold text-orange-400">\${log.method} <span class="text-blue-300 font-mono ml-2">\${log.url}</span></span>
+                                <span class="font-bold text-[#8a2be2]">\${log.method} <span class="text-[#00bfff] font-mono ml-2">\${log.url}</span></span>
                                 <span class="font-mono text-gray-500">\${log.timeTaken} | <span class="\${statusColor}">\${log.status}</span></span>
                             </div>
-                            <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/5">
-                                <div><div class="text-[9px] text-gray-500 mb-1">REQUEST BODY</div><pre class="text-[10px] text-pink-200 overflow-x-auto">\${JSON.stringify(log.reqBody, null, 2)}</pre></div>
-                                <div><div class="text-[9px] text-gray-500 mb-1">RESPONSE</div><pre class="text-[10px] text-[#00ffcc] overflow-x-auto">\${JSON.stringify(log.resBody, null, 2)}</pre></div>
+                            <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-[#00bfff]/30">
+                                <div><div class="text-[9px] text-gray-500 mb-1 terminal">PAYLOAD_IN</div><pre class="text-[10px] text-[#39ff14] overflow-x-auto">\${JSON.stringify(log.reqBody, null, 2)}</pre></div>
+                                <div><div class="text-[9px] text-gray-500 mb-1 terminal">PAYLOAD_OUT</div><pre class="text-[10px] text-[#00bfff] overflow-x-auto">\${JSON.stringify(log.resBody, null, 2)}</pre></div>
                             </div>
                         </div>\`;
                     }).join('');
@@ -1193,39 +1195,39 @@ app.get('/logs', (req, res) => {
 
     res.send(`
         <!DOCTYPE html>
-        <html lang="en"><head><title>System Logs</title>${uiHead}</head>
+        <html lang="en"><head><title>DATA LOGS</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
             ${getOrbs()}
-            ${getFloatingHeader('MASTER LOGS', true)}
+            ${getFloatingHeader('SYSTEM_LOGS', true)}
             
             <div class="w-full max-w-7xl mt-4">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                    <div class="glass-panel animate-box rounded-[2rem] flex flex-col h-[50vh] overflow-hidden bg-black/90 dark:bg-black/80">
-                        <div class="flex justify-between items-center p-5 border-b border-white/10">
-                            <h3 class="font-black tracking-widest text-[#8a2be2] text-sm"><i class="fa-solid fa-microchip mr-2"></i>ENGINE EVENTS</h3>
-                            <button onclick="copyContent('sys-logs')" class="text-xs bg-white/10 hover:bg-[#8a2be2] text-white px-3 py-1 rounded transition"><i class="fa-regular fa-copy mr-1"></i> Copy</button>
+                    <div class="glass-panel animate-box rounded-lg border border-[#39ff14] flex flex-col h-[50vh] overflow-hidden bg-[#02060d]/90">
+                        <div class="flex justify-between items-center p-5 border-b border-[#39ff14]/30">
+                            <h3 class="font-black tracking-widest text-[#39ff14] text-sm terminal"><i class="fa-solid fa-microchip mr-2"></i>ENGINE_STDOUT</h3>
+                            <button onclick="copyContent('sys-logs')" class="text-xs border border-[#39ff14] bg-[#39ff14]/10 hover:bg-[#39ff14] text-[#39ff14] hover:text-black px-3 py-1 rounded-sm transition terminal"><i class="fa-regular fa-copy mr-1"></i> DUMP</button>
                         </div>
-                        <div class="terminal text-xs md:text-sm flex-1 overflow-y-auto p-6 text-white space-y-1" id="sys-logs"></div>
+                        <div class="terminal text-xs md:text-sm flex-1 overflow-y-auto p-6 text-[#39ff14] space-y-1" id="sys-logs"></div>
                     </div>
                     
-                    <div class="glass-panel animate-box rounded-[2rem] flex flex-col h-[50vh] overflow-hidden bg-black/90 dark:bg-black/80">
-                        <div class="flex justify-between items-center p-5 border-b border-white/10">
-                            <h3 class="font-black tracking-widest text-[#00ffcc] text-sm"><i class="fa-solid fa-network-wired mr-2"></i>NETWORK & STATUS</h3>
-                            <button onclick="copyContent('net-logs')" class="text-xs bg-white/10 hover:bg-[#00ffcc] hover:text-black text-white px-3 py-1 rounded transition"><i class="fa-regular fa-copy mr-1"></i> Copy</button>
+                    <div class="glass-panel animate-box rounded-lg border border-[#00bfff] flex flex-col h-[50vh] overflow-hidden bg-[#02060d]/90">
+                        <div class="flex justify-between items-center p-5 border-b border-[#00bfff]/30">
+                            <h3 class="font-black tracking-widest text-[#00bfff] text-sm terminal"><i class="fa-solid fa-network-wired mr-2"></i>NET_STDOUT</h3>
+                            <button onclick="copyContent('net-logs')" class="text-xs border border-[#00bfff] bg-[#00bfff]/10 hover:bg-[#00bfff] hover:text-black text-[#00bfff] px-3 py-1 rounded-sm transition terminal"><i class="fa-regular fa-copy mr-1"></i> DUMP</button>
                         </div>
-                        <div class="terminal text-[11px] md:text-xs flex-1 overflow-y-auto p-6 text-pink-200 break-all leading-relaxed space-y-1" id="net-logs"></div>
+                        <div class="terminal text-[11px] md:text-xs flex-1 overflow-y-auto p-6 text-[#00bfff] break-all leading-relaxed space-y-1" id="net-logs"></div>
                     </div>
                 </div>
 
-                <div class="glass-panel animate-box rounded-[2rem] p-6 bg-black/90 dark:bg-black/80">
-                     <h3 class="font-black tracking-widest text-orange-500 text-sm mb-4 border-b border-white/10 pb-2"><i class="fa-solid fa-camera mr-2"></i>STEP MATRIX & ERRORS</h3>
+                <div class="glass-panel animate-box rounded-lg border border-[#8a2be2] p-6 bg-[#02060d]/90">
+                     <h3 class="font-black tracking-widest text-[#8a2be2] text-sm mb-4 border-b border-[#8a2be2]/30 pb-2 terminal"><i class="fa-solid fa-camera mr-2"></i>MATRIX_SNAPSHOTS</h3>
                      <div id="matrix-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>
                 </div>
             </div>
             
             <div id="img-modal" class="fixed inset-0 bg-black/95 z-[500] hidden flex-col items-center justify-center p-4">
-                <button onclick="document.getElementById('img-modal').classList.add('hidden')" class="absolute top-6 right-6 text-white text-4xl hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
-                <img id="modal-img-src" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-[0_0_50px_rgba(255,107,0,0.5)]" />
+                <button onclick="document.getElementById('img-modal').classList.add('hidden')" class="absolute top-6 right-6 text-[#39ff14] border border-[#39ff14] w-12 h-12 flex items-center justify-center rounded-sm text-2xl hover:bg-[#39ff14] hover:text-black transition"><i class="fa-solid fa-xmark"></i></button>
+                <img id="modal-img-src" src="" class="max-w-full max-h-[90vh] object-contain rounded-lg border-2 border-[#00bfff] shadow-[0_0_50px_rgba(0,191,255,0.3)]" />
             </div>
 
             <script src="/socket.io/socket.io.js"></script>
@@ -1247,12 +1249,12 @@ app.get('/logs', (req, res) => {
                     grid.innerHTML = '';
                     for(let uid in matrix) {
                         matrix[uid].forEach(snap => {
-                            let isErr = snap.isError ? 'border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)]' : 'border-white/10 hover:border-orange-500';
-                            let titleCol = snap.isError ? 'text-red-400 font-bold' : 'text-gray-400';
-                            grid.innerHTML += \`<div class="bg-black/50 rounded-xl p-2 border \${isErr} cursor-pointer transition hover:scale-105" onclick="showImg('data:image/jpeg;base64,\${snap.img}')">
-                                <div class="text-[10px] text-orange-400 font-bold truncate mb-1">\${uid}</div>
+                            let isErr = snap.isError ? 'border-red-500 shadow-[0_0_15px_rgba(255,0,0,0.5)]' : 'border-[#00bfff]/30 hover:border-[#39ff14]';
+                            let titleCol = snap.isError ? 'text-red-400 font-bold' : 'text-[#00bfff]';
+                            grid.innerHTML += \`<div class="bg-black/50 rounded-sm p-2 border \${isErr} cursor-pointer transition hover:scale-105" onclick="showImg('data:image/jpeg;base64,\${snap.img}')">
+                                <div class="text-[10px] text-[#39ff14] font-bold truncate mb-1 terminal">\${uid}</div>
                                 <div class="text-[8px] \${titleCol} truncate mb-2 font-mono">\${snap.step} | \${snap.time}</div>
-                                <img src="data:image/jpeg;base64,\${snap.img}" class="w-full aspect-[9/16] object-cover rounded-lg" />
+                                <img src="data:image/jpeg;base64,\${snap.img}" class="w-full aspect-[9/16] object-cover rounded-sm border border-[#00bfff]/30" />
                             </div>\`;
                         });
                     }
@@ -1264,7 +1266,7 @@ app.get('/logs', (req, res) => {
                 }
                 function copyContent(id) {
                     navigator.clipboard.writeText(document.getElementById(id).innerText);
-                    showSysModal({title: "COPIED", msg: "Logs copied to clipboard successfully!"});
+                    showSysModal({title: "DATA DUMP", msg: "Buffer copied to clipboard!"});
                 }
             </script>
         </body></html>
@@ -1290,18 +1292,18 @@ setInterval(() => {
         let isRunning = engineStatus[uid] || false;
 
         if(timerObj.isSub) {
-            if (isRunning) remainingStr = '<span class="text-[#ff007f] font-black tracking-widest flex items-center"><i class="fa-solid fa-gear fa-spin mr-2"></i>EXECUTING</span>';
+            if (isRunning) remainingStr = '<span class="text-[#39ff14] font-black tracking-widest flex items-center terminal"><i class="fa-solid fa-gear fa-spin mr-2"></i>EXECUTING</span>';
             else {
                 const diff = timerObj.nextRun - now;
-                if(diff > 0) remainingStr = '<span class="text-[#00ffcc] font-medium"><i class="fa-regular fa-clock mr-1"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
-                else remainingStr = '<span class="text-yellow-500 font-medium">Booting...</span>';
+                if(diff > 0) remainingStr = '<span class="text-[#00bfff] font-medium terminal"><i class="fa-regular fa-clock mr-1"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
+                else remainingStr = '<span class="text-yellow-500 font-medium terminal">Booting...</span>';
             }
         } else {
             const diff = timerObj.nextRun - now;
-            if(!timerObj.autoActivate) remainingStr = '<span class="text-red-500 font-bold"><i class="fa-solid fa-pause mr-1"></i> PAUSED</span>';
-            else if (isRunning) remainingStr = '<span class="text-[#ff007f] font-black tracking-widest flex items-center"><i class="fa-solid fa-gear fa-spin mr-2"></i>EXECUTING</span>';
-            else if (diff > 0) remainingStr = '<span class="text-[#00ffcc] font-medium"><i class="fa-regular fa-clock mr-1"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
-            else remainingStr = '<span class="text-yellow-500 font-medium">Booting...</span>';
+            if(!timerObj.autoActivate) remainingStr = '<span class="text-red-500 font-bold terminal"><i class="fa-solid fa-pause mr-1"></i> HALTED</span>';
+            else if (isRunning) remainingStr = '<span class="text-[#39ff14] font-black tracking-widest flex items-center terminal"><i class="fa-solid fa-gear fa-spin mr-2"></i>EXECUTING</span>';
+            else if (diff > 0) remainingStr = '<span class="text-[#00bfff] font-medium terminal"><i class="fa-regular fa-clock mr-1"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
+            else remainingStr = '<span class="text-yellow-500 font-medium terminal">Booting...</span>';
         }
         
         uiData[uid] = { name: timerObj.name, remaining: remainingStr, isRunning, autoActivate: timerObj.autoActivate !== false };
@@ -1311,7 +1313,7 @@ setInterval(() => {
 
 function appendLog(html, type = 'sys') {
     const timeStr = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour12: false });
-    const fullLog = `<div class="border-b border-white/5 pb-1 mb-1 text-[11px]"><span class="text-gray-500 bg-white/5 px-2 py-0.5 rounded mr-2 font-mono">[${timeStr}]</span> ${html}</div>`;
+    const fullLog = `<div class="border-b border-[#00bfff]/20 pb-1 mb-1 text-[11px]"><span class="text-[#00bfff] bg-black/50 px-2 py-0.5 rounded-sm mr-2 font-mono border border-[#00bfff]/30">[${timeStr}]</span> ${html}</div>`;
     if (type === 'net') { networkLogs.push(fullLog); if(networkLogs.length > 500) networkLogs.shift(); } 
     else { systemLogs.push(fullLog); if(systemLogs.length > 300) systemLogs.shift(); }
     io.emit('cron_log', { html: fullLog, type });
@@ -1393,10 +1395,10 @@ async function executeEngineWithRetry(uid, forcedName = null) {
     }
 
     if(target && !target.isSub && target.autoActivate) {
-        appendLog(`<span class="text-orange-400 font-bold"><i class="fa-solid fa-hourglass-start mr-1"></i> Auto-Resume after ${target.intervalMins} mins...</span>`);
+        appendLog(`<span class="text-yellow-400 font-bold"><i class="fa-solid fa-hourglass-start mr-1"></i> Auto-Resume after ${target.intervalMins} mins...</span>`);
         scheduleNextRun(uid);
     } else if(target && target.isSub) {
-        appendLog(`<span class="text-orange-400 font-bold"><i class="fa-solid fa-hourglass-start mr-1"></i> Sub-Resume after ${target.intervalMins} mins...</span>`);
+        appendLog(`<span class="text-[#00bfff] font-bold"><i class="fa-solid fa-hourglass-start mr-1"></i> Sub-Resume after ${target.intervalMins} mins...</span>`);
         scheduleNextRun(uid);
     }
 }
@@ -1417,7 +1419,7 @@ setTimeout(async () => {
     try {
         const { data: users } = await supabase.from('targets').select('*');
         if (users && users.length > 0) {
-            appendLog('<span class="text-purple-400"><i class="fa-solid fa-database mr-1"></i> Restoring Database Systems...</span>');
+            appendLog('<span class="text-[#8a2be2]"><i class="fa-solid fa-database mr-1"></i> Restoring Database Systems...</span>');
             users.forEach((u, index) => {
                 setTimeout(() => startUIDCycle(u.uid, u.name, u.interval_mins, u.auto_activate, u.auto_activate), index * 10000);
             });
@@ -1442,15 +1444,23 @@ async function runGhostActivator(uid, name) {
     let browser;
     engineStatus[uid] = true;
     const sysLog = (msg) => appendLog(`<b class="text-white">[${uid}]</b> ${msg}`); 
-    const netLog = (msg) => appendLog(`<b class="text-[#ff007f]">[${uid}]</b> ${msg}`, 'net');
+    const netLog = (msg) => appendLog(`<b class="text-[#8a2be2]">[${uid}]</b> ${msg}`, 'net');
 
     try {
-        sysLog('<i class="fa-solid fa-rocket text-[#00ffcc]"></i> Engine Booting (Native 90 FPS)...'); 
+        sysLog('<i class="fa-solid fa-rocket text-[#39ff14]"></i> Engine Booting (Native 90 FPS)...'); 
         
+        // FIXED FOR RAILWAY & TERMUX
+        let execPath = undefined;
+        if (IS_TERMUX) {
+            execPath = '/data/data/com.termux/files/usr/bin/chromium-browser';
+        } else if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+            execPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        }
+
         browser = await puppeteer.launch({
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage', '--window-size=360,640'],
             headless: 'new',
-            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/data/data/com.termux/files/usr/bin/chromium-browser' 
+            executablePath: execPath 
         });
 
         const page = (await browser.pages())[0] || await browser.newPage();
@@ -1511,9 +1521,9 @@ async function runGhostActivator(uid, name) {
                 const url = res.url();
                 const status = res.status();
                 if(!['google-analytics', 'doubleclick', 'facebook', 'bing'].some(j => url.includes(j))) {
-                    let statusColor = status >= 400 ? 'text-red-500 font-bold' : (status >= 300 ? 'text-yellow-400' : 'text-green-400');
+                    let statusColor = status >= 400 ? 'text-red-500 font-bold' : (status >= 300 ? 'text-yellow-400' : 'text-[#39ff14]');
                     let icon = status >= 400 ? 'fa-xmark' : 'fa-check';
-                    netLog(`<div class="bg-black/20 p-2 rounded mb-1 border-l-2 border-white/10"><span class="${statusColor} font-mono mr-2"><i class="fa-solid ${icon}"></i> ${status}</span> <span class="text-blue-300">${url.substring(0,60)}...</span></div>`);
+                    netLog(`<div class="bg-black/50 p-2 rounded-sm mb-1 border-l-2 border-[#00bfff]"><span class="${statusColor} font-mono mr-2"><i class="fa-solid ${icon}"></i> ${status}</span> <span class="text-[#00bfff]">${url.substring(0,60)}...</span></div>`);
                 }
             }
         });
@@ -1522,7 +1532,7 @@ async function runGhostActivator(uid, name) {
         page.on('dialog', async dialog => { await dialog.dismiss(); }); 
 
         await page.goto('https://unlockffbeta.com/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-        sysLog('<i class="fa-solid fa-globe text-[#8a2be2]"></i> Page loaded. Starting sequence...');
+        sysLog('<i class="fa-solid fa-globe text-[#00bfff]"></i> Page loaded. Starting sequence...');
         await saveMatrixScreen("INIT_DOM_LOAD");
 
         let safetyCounter = 0;
@@ -1576,7 +1586,7 @@ async function runGhostActivator(uid, name) {
             });
 
             if (resultData.success) {
-                sysLog('<span class="text-green-400 font-black"><i class="fa-solid fa-circle-check"></i> ✅ Activation Successful!</span>');
+                sysLog('<span class="text-[#39ff14] font-black terminal"><i class="fa-solid fa-circle-check"></i> ✅ Activation Successful!</span>');
                 await saveMatrixScreen("SUCCESS_VERIFIED");
 
                 // TIME PARSING AND RE-SCHEDULING LOGIC
@@ -1627,7 +1637,7 @@ async function runGhostActivator(uid, name) {
                 }, uid);
                 if (injected) { 
                     uidInjected = true; 
-                    sysLog('<i class="fa-solid fa-keyboard text-[#ff007f]"></i> UID typed successfully.');
+                    sysLog('<i class="fa-solid fa-keyboard text-[#00bfff]"></i> UID typed successfully.');
                     await saveMatrixScreen("UID_TYPED");
                     await new Promise(r => setTimeout(r, 1000)); 
                 }
@@ -1664,7 +1674,7 @@ async function runGhostActivator(uid, name) {
             });
 
             if (clicked) {
-                sysLog(`<i class="fa-solid fa-hand-pointer text-orange-400"></i> Action Performed: "${clicked}"`);
+                sysLog(`<i class="fa-solid fa-hand-pointer text-[#8a2be2]"></i> Action Performed: "${clicked}"`);
                 await saveMatrixScreen("ACTION_CLICKED");
                 await new Promise(r => setTimeout(r, 2000));
             } else {
@@ -1698,7 +1708,7 @@ async function runGhostActivator(uid, name) {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log('\n=========================================');
-    console.log(`👑 ROMEO KING ADMIN SERVER RUNNING`);
+    console.log(`⚡ ROMEO ROOT SERVER INITIALIZED`);
     console.log(`📡 ENVIRONMENT: ${HOST_ENV}`);
     console.log(`👉 Front: http://localhost:${PORT}/`);
     console.log('=========================================\n');
