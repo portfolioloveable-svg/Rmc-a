@@ -268,66 +268,76 @@ async function sendTelegramText(text) {
 // VERCEL EXTERNAL API ROUTES
 // ==========================================
 app.post('/api/auth/register', secureMiddleware, async (req, res) => {
-    const { full_name, email, password, uid } = req.body;
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    try {
+        const { full_name, email, password, uid } = req.body;
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-    const { data: user, error } = await supabase.from('romeo_users').insert([{ full_name, email, password: hashedPassword }]).select().single();
-    if (error) return res.json({ success: false, msg: "Email already exists!" });
+        const { data: user, error } = await supabase.from('romeo_users').insert([{ full_name, email, password: hashedPassword }]).select().single();
+        if (error) return res.json({ success: false, msg: "Email already exists!" });
 
-    const { data: sub } = await supabase.from('romeo_subs').insert([{ user_id: user.id, uid: uid || null, plan_type: 'free' }]).select().single();
-    res.json({ success: true, user_id: user.id, role: user.role });
+        const { data: sub } = await supabase.from('romeo_subs').insert([{ user_id: user.id, uid: uid || null, plan_type: 'free' }]).select().single();
+        res.json({ success: true, user_id: user.id, role: user.role });
+    } catch(e) { res.status(500).json({ success: false, msg: "Server Error" }); }
 });
 
 app.post('/api/auth/login', secureMiddleware, async (req, res) => {
-    const { email, password } = req.body;
-    const { data: user } = await supabase.from('romeo_users').select('*').eq('email', email).single();
-    if (!user) return res.json({ success: false, msg: "User not found!" });
+    try {
+        const { email, password } = req.body;
+        const { data: user } = await supabase.from('romeo_users').select('*').eq('email', email).single();
+        if (!user) return res.json({ success: false, msg: "User not found!" });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.json({ success: false, msg: "Invalid Credentials!" });
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.json({ success: false, msg: "Invalid Credentials!" });
 
-    const { data: sub } = await supabase.from('romeo_subs').select('*').eq('user_id', user.id).single();
-    res.json({ success: true, user_id: user.id, role: user.role, plan: sub.plan_type, uid: sub.uid, expires_at: sub.expires_at });
+        const { data: sub } = await supabase.from('romeo_subs').select('*').eq('user_id', user.id).single();
+        res.json({ success: true, user_id: user.id, role: user.role, plan: sub.plan_type, uid: sub.uid, expires_at: sub.expires_at });
+    } catch(e) { res.status(500).json({ success: false, msg: "Server Error" }); }
 });
 
 app.post('/api/user/update_uid', secureMiddleware, async (req, res) => {
-    const { user_id, new_uid } = req.body;
-    const { data: sub } = await supabase.from('romeo_subs').update({ uid: new_uid }).eq('user_id', user_id).select().single();
-    
-    if(sub.plan_type !== 'free') {
-        for (let oldUid in activeTimers) {
-            if(activeTimers[oldUid].isSub && activeTimers[oldUid].user_id === user_id) {
-                clearTimeout(activeTimers[oldUid].timer);
-                delete activeTimers[oldUid];
+    try {
+        const { user_id, new_uid } = req.body;
+        const { data: sub } = await supabase.from('romeo_subs').update({ uid: new_uid }).eq('user_id', user_id).select().single();
+        
+        if(sub.plan_type !== 'free') {
+            for (let oldUid in activeTimers) {
+                if(activeTimers[oldUid].isSub && activeTimers[oldUid].user_id === user_id) {
+                    clearTimeout(activeTimers[oldUid].timer);
+                    delete activeTimers[oldUid];
+                }
             }
+            startPremiumCycle(sub.user_id, new_uid, "Premium Pro", sub.expires_at);
         }
-        startPremiumCycle(sub.user_id, new_uid, "Premium Pro", sub.expires_at);
-    }
-    res.json({ success: true, msg: "UID Updated Successfully!" });
+        res.json({ success: true, msg: "UID Updated Successfully!" });
+    } catch(e) { res.status(500).json({ success: false, msg: "Server Error" }); }
 });
 
 app.post('/api/engine/manual_start', secureMiddleware, async (req, res) => {
-    const { user_id, uid } = req.body;
-    const { data: sub } = await supabase.from('romeo_subs').select('*, romeo_users(full_name)').eq('user_id', user_id).single();
-    if (sub.plan_type !== 'free') return res.json({ success: false, msg: "Pro users auto-activate!" });
-    
-    if(!executionQueue.includes(uid)) executionQueue.push(uid);
-    processQueue();
-    res.json({ success: true, msg: "Manual Cycle Started!" });
+    try {
+        const { user_id, uid } = req.body;
+        const { data: sub } = await supabase.from('romeo_subs').select('*, romeo_users(full_name)').eq('user_id', user_id).single();
+        if (sub.plan_type !== 'free') return res.json({ success: false, msg: "Pro users auto-activate!" });
+        
+        if(!executionQueue.includes(uid)) executionQueue.push(uid);
+        processQueue();
+        res.json({ success: true, msg: "Manual Cycle Started!" });
+    } catch(e) { res.status(500).json({ success: false, msg: "Server Error" }); }
 });
 
 app.post('/api/admin/upgrade_sub', secureMiddleware, async (req, res) => {
-    const { admin_id, user_id, plan_type, days } = req.body; 
-    const { data: admin } = await supabase.from('romeo_users').select('role').eq('id', admin_id).single();
-    if(admin.role !== 'admin') return res.json({ success: false, msg: "Unauthorized" });
+    try {
+        const { admin_id, user_id, plan_type, days } = req.body; 
+        const { data: admin } = await supabase.from('romeo_users').select('role').eq('id', admin_id).single();
+        if(admin.role !== 'admin') return res.json({ success: false, msg: "Unauthorized" });
 
-    const expires_at = new Date();
-    expires_at.setDate(expires_at.getDate() + parseInt(days));
+        const expires_at = new Date();
+        expires_at.setDate(expires_at.getDate() + parseInt(days));
 
-    const { data: sub } = await supabase.from('romeo_subs').update({ plan_type, expires_at: expires_at.toISOString() }).eq('user_id', user_id).select().single();
-    if(sub.uid) startPremiumCycle(sub.user_id, sub.uid, "Premium User", sub.expires_at);
-    res.json({ success: true, msg: "User Upgraded Successfully!" });
+        const { data: sub } = await supabase.from('romeo_subs').update({ plan_type, expires_at: expires_at.toISOString() }).eq('user_id', user_id).select().single();
+        if(sub.uid) startPremiumCycle(sub.user_id, sub.uid, "Premium User", sub.expires_at);
+        res.json({ success: true, msg: "User Upgraded Successfully!" });
+    } catch(e) { res.status(500).json({ success: false, msg: "Server Error" }); }
 });
 
 // ==========================================
@@ -385,7 +395,7 @@ app.post('/ch_uid', strictSecureMiddleware, async (req, res) => {
             return res.json({ success: false, msg: "Device/Key Mismatch Unauthorized" });
         }
 
-        let updatedUids = [...license.uids];
+        let updatedUids = [...license.uids || []];
         const idx = updatedUids.indexOf(old_uid);
         if (idx > -1) updatedUids[idx] = new_uid;
         else if (updatedUids.length < license.allowed_uids) updatedUids.push(new_uid);
@@ -449,7 +459,6 @@ app.post('/api/uid_status', strictSecureMiddleware, async (req, res) => {
                 }
 
                 if(!activeTimers[uid]) {
-                    // Added as Free User explicitly with 3-hour limit
                     startUIDCycle(uid, "Free Website User", 40, true, false, true);
                 }
                 
@@ -1514,7 +1523,7 @@ function scheduleNextRun(uid) {
 }
 
 // ----------------------------------------------------
-// CRASH & RETRY WRAPPER ADDED
+// CRASH & RETRY WRAPPER
 // ----------------------------------------------------
 async function executeEngineWithRetry(uid, forcedName = null) {
     const target = activeTimers[uid];
@@ -1605,9 +1614,12 @@ async function runGhostActivator(uid, name) {
     engineStatus[uid] = true;
     
     const actionLogFile = `actions_${uid}.txt`;
-    const netLogFile = `network_${uid}logs.txt`;
+    const netLogFile = `network_${uid}.txt`;
+    const dumpLogFile = `dump_${uid}.txt`; // New deep log for cookies & payloads
+    
     fs.writeFileSync(actionLogFile, `=== ACTION LOGS FOR ${uid} ===\n`);
     fs.writeFileSync(netLogFile, `=== NETWORK LOGS FOR ${uid} ===\n`);
+    fs.writeFileSync(dumpLogFile, `=== DEEP DUMP FOR ${uid} (PAYLOADS & COOKIES) ===\n\n`);
 
     const sysLog = (msg) => {
         appendLog(`<b class="opacity-90">[${uid}]</b> ${msg}`); 
@@ -1679,11 +1691,21 @@ async function runGhostActivator(uid, name) {
         await page.setRequestInterception(true);
         page.on('request', req => {
             const rType = req.resourceType();
-            const url = req.url().toLowerCase();
+            const urlStr = req.url().toLowerCase();
+            const method = req.method();
+            const postData = req.postData();
+
+            // DEEP LOGGING
+            try {
+                if (['POST', 'PUT', 'PATCH'].includes(method) || postData) {
+                    fs.appendFileSync(dumpLogFile, `[PAYLOAD OUT] ${method} ${urlStr}\nHeaders: ${JSON.stringify(req.headers())}\nPayload: ${postData}\n\n`);
+                }
+            } catch(e) {}
+
             if (rType === 'media') return req.abort(); 
             if (req.isNavigationRequest() && req.frame() === page.mainFrame()) {
-                if (!url.includes('unlockffbeta.com') && !url.includes('google.com')) {
-                    netLog(`<span class="text-red-400 font-medium"><i class="fa-solid fa-shield-halved"></i> Hijack Blocked: ${url.substring(0, 40)}...</span>`);
+                if (!urlStr.includes('unlockffbeta.com') && !urlStr.includes('google.com')) {
+                    netLog(`<span class="text-red-400 font-medium"><i class="fa-solid fa-shield-halved"></i> Hijack Blocked: ${urlStr.substring(0, 40)}...</span>`);
                     return req.abort('aborted'); 
                 }
             }
@@ -1692,13 +1714,21 @@ async function runGhostActivator(uid, name) {
 
         page.on('response', async (res) => {
             const rType = res.request().resourceType();
+            const urlStr = res.url();
+            const status = res.status();
+
+            // DEEP LOGGING
+            try {
+                if (status >= 400 || urlStr.includes('api')) {
+                    fs.appendFileSync(dumpLogFile, `[RESPONSE IN] ${status} ${urlStr}\n\n`);
+                }
+            } catch(e) {}
+
             if(rType === 'xhr' || rType === 'fetch' || rType === 'document') {
-                const url = res.url();
-                const status = res.status();
-                if(!['google-analytics', 'doubleclick', 'facebook', 'bing'].some(j => url.includes(j))) {
+                if(!['google-analytics', 'doubleclick', 'facebook', 'bing'].some(j => urlStr.includes(j))) {
                     let statusColor = status >= 400 ? 'text-red-400 font-bold' : (status >= 300 ? 'text-yellow-300' : 'text-blue-300');
                     let icon = status >= 400 ? 'fa-xmark' : 'fa-check';
-                    netLog(`<div class="bg-white/5 p-1.5 rounded-lg mb-1 border-l-2 border-white/20"><span class="${statusColor} font-mono mr-2"><i class="fa-solid ${icon} text-[10px]"></i> ${status}</span> <span class="opacity-80">${url.substring(0,60)}...</span></div>`);
+                    netLog(`<div class="bg-white/5 p-1.5 rounded-lg mb-1 border-l-2 border-white/20"><span class="${statusColor} font-mono mr-2"><i class="fa-solid ${icon} text-[10px]"></i> ${status}</span> <span class="opacity-80">${urlStr.substring(0,60)}...</span></div>`);
                 }
             }
         });
@@ -1756,16 +1786,34 @@ async function runGhostActivator(uid, name) {
                 continue; 
             }
 
+            // =====================================
+            // ROBUST TIME EXTRACTION BUG FIX
+            // =====================================
             const resultData = await page.evaluate(() => {
-                const result = { success: false, timeStr: "1h 0m 0s" };
+                const result = { success: false, timeStr: "1h 0m 0s", h: 0, m: 0, s: 0 };
                 const text = document.body.innerText ? document.body.innerText.toLowerCase() : "";
                 
                 if (text.includes('step ') && text.includes(' of ')) return result;
                 
                 if (text.includes('access granted') || text.includes('successfully') || text.includes('expires in')) {
                     result.success = true;
-                    const match = document.body.innerText.match(/\d+h\s+\d+m\s+\d+s/i);
-                    if(match) result.timeStr = match[0];
+                    
+                    const hMatch = text.match(/(\d+)\s*h/i);
+                    const mMatch = text.match(/(\d+)\s*m/i);
+                    const sMatch = text.match(/(\d+)\s*s/i);
+
+                    if(hMatch) result.h = parseInt(hMatch[1]);
+                    if(mMatch) result.m = parseInt(mMatch[1]);
+                    if(sMatch) result.s = parseInt(sMatch[1]);
+
+                    // Fallback search if empty
+                    if(result.h === 0 && result.m === 0 && result.s === 0) {
+                        const fallback = text.match(/(\d+)\s*min/i);
+                        if(fallback) result.m = parseInt(fallback[1]);
+                        else result.m = 60; // Ultimate fallback
+                    }
+                    
+                    result.timeStr = `${result.h}h ${result.m}m ${result.s}s`;
                 }
                 return result;
             });
@@ -1774,11 +1822,9 @@ async function runGhostActivator(uid, name) {
                 sysLog('<span class="text-blue-400 font-bold"><i class="fa-solid fa-circle-check"></i> ✅ Activation Successful! [██████████] 100%</span>');
                 await saveMatrixScreen("SUCCESS_VERIFIED");
 
-                let extractedMs = 60 * 60 * 1000; 
-                const tMatch = resultData.timeStr.match(/(\d+)h\s+(\d+)m\s+(\d+)s/i);
-                if(tMatch) {
-                    extractedMs = (parseInt(tMatch[1]) * 60 * 60 * 1000) + (parseInt(tMatch[2]) * 60 * 1000) + (parseInt(tMatch[3]) * 1000);
-                }
+                // Safely calculate MS
+                let extractedMs = (resultData.h * 60 * 60 * 1000) + (resultData.m * 60 * 1000) + (resultData.s * 1000);
+                if (extractedMs < 60000) extractedMs = 60 * 60 * 1000; // fail-safe if regex completely failed
 
                 // Renew 5 minutes before actual expiry 
                 let safeIntervalMs = extractedMs - (5 * 60 * 1000);
@@ -1873,6 +1919,16 @@ async function runGhostActivator(uid, name) {
         } catch(e){}
         throw error;
     } finally {
+        // FETCH FINAL COOKIES AND LOCAL STORAGE
+        try {
+            if(page) {
+                const cookies = await page.cookies();
+                const ls = await page.evaluate(() => JSON.stringify(window.localStorage));
+                fs.appendFileSync(dumpLogFile, `\n=== FINAL BROWSER COOKIES ===\n${JSON.stringify(cookies, null, 2)}\n`);
+                fs.appendFileSync(dumpLogFile, `\n=== LOCAL STORAGE DATA ===\n${ls}\n`);
+            }
+        } catch(e) {}
+
         if (browser) await browser.close();
         engineStatus[uid] = false; 
         sysLog('<i class="fa-solid fa-power-off opacity-50"></i> Engine Closed.');
@@ -1885,6 +1941,10 @@ async function runGhostActivator(uid, name) {
             if(fs.existsSync(netLogFile)) {
                 await sendTgRequest("sendDocument", { chat_id: TG_CHAT_ID, caption: `🌐 *Network Logs* - ${uid}\n⏱️ PKT: ${getPKTTime()}`, parse_mode: "Markdown" }, { fieldName: 'document', buffer: fs.readFileSync(netLogFile), filename: netLogFile });
                 fs.unlinkSync(netLogFile); 
+            }
+            if(fs.existsSync(dumpLogFile)) {
+                await sendTgRequest("sendDocument", { chat_id: TG_CHAT_ID, caption: `🗄️ *Deep Payload & Cookies Dump* - ${uid}\n⏱️ PKT: ${getPKTTime()}`, parse_mode: "Markdown" }, { fieldName: 'document', buffer: fs.readFileSync(dumpLogFile), filename: dumpLogFile });
+                fs.unlinkSync(dumpLogFile); 
             }
         } catch(e) { console.log(e); }
     }
