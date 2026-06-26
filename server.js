@@ -1,3 +1,4 @@
+// Ye lijiye apka updated code. Proxy hta di hai, UI iOS Blue Theme mein redesign kar di hai aur resource error fix karne ke liye single-process arguments add kiye hain.
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -39,13 +40,7 @@ const TG_BOT_TOKEN = '6349510394:AAFZNXCdU6glkXiXlg42_y58DNpYHEM-8Aw';
 const TG_CHAT_ID = '6383817850';
 const TG_LIVE_STICKER_ID = 'CAACAgIAAxkBAAE...'; 
 
-const TG_API_ENDPOINTS = [
-    "https://api.telegram.org",
-    "https://teleapi.vercel.app",
-    "https://tg-proxy.romania.workers.dev", 
-    "https://api.telegram.org.bot.vercel.app"
-];
-let stickyProxy = null; 
+const TG_API_ENDPOINT = "https://api.telegram.org";
 
 // HTTPS Agent
 const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
@@ -236,33 +231,27 @@ const strictSecureMiddleware = (req, res, next) => {
 };
 
 // ==========================================
-// TELEGRAM CORE WITH LIVE TRACKER
+// TELEGRAM CORE WITH NO RETRIES/NO PROXIES
 // ==========================================
 async function sendTgRequest(method, payload, fileData = null) {
-    let endpointsToTry = stickyProxy ? [stickyProxy, ...TG_API_ENDPOINTS.filter(e => e !== stickyProxy)] : TG_API_ENDPOINTS;
-    let lastErr = "";
-
-    for (let endpoint of endpointsToTry) {
-        try {
-            let url = `${endpoint}/bot${TG_BOT_TOKEN}/${method}`;
-            let res;
-            if (fileData) {
-                const form = new FormData();
-                if (payload) for (let k in payload) form.append(k, payload[k]);
-                form.append(fileData.fieldName, fileData.buffer, fileData.filename);
-                res = await axios.post(url, form, { headers: form.getHeaders(), timeout: 35000, httpsAgent });
-            } else {
-                res = await axios.post(url, payload, { headers: {'Content-Type': 'application/json'}, timeout: 15000, httpsAgent });
-            }
-            if (res.status === 200) { 
-                stickyProxy = endpoint; 
-                return res.data; 
-            }
-        } catch (e) {
-            lastErr = e.code === 'ECONNRESET' ? 'Connection Reset' : (e.response ? `HTTP ${e.response.status}` : e.message);
+    try {
+        let url = `${TG_API_ENDPOINT}/bot${TG_BOT_TOKEN}/${method}`;
+        let res;
+        if (fileData) {
+            const form = new FormData();
+            if (payload) for (let k in payload) form.append(k, payload[k]);
+            form.append(fileData.fieldName, fileData.buffer, fileData.filename);
+            res = await axios.post(url, form, { headers: form.getHeaders(), timeout: 25000, httpsAgent });
+        } else {
+            res = await axios.post(url, payload, { headers: {'Content-Type': 'application/json'}, timeout: 15000, httpsAgent });
         }
+        if (res.status === 200) { 
+            return res.data; 
+        }
+    } catch (e) {
+        let lastErr = e.code === 'ECONNRESET' ? 'Connection Reset' : (e.response ? `HTTP ${e.response.status}` : e.message);
+        appendLog(`<span class="text-red-500 font-medium">⚠️ TG Communications Failed: ${lastErr}</span>`);
     }
-    appendLog(`<span class="text-red-500 font-medium">⚠️ TG Communications Failed: ${lastErr}</span>`);
     return false;
 }
 
@@ -272,7 +261,7 @@ async function sendTelegramScreenshot(base64Image, uid, name, isError = false, o
     let caption = overrideCaption || (isError ? `❌ Activation Error/Block!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time (PKT): ${getPKTTime()}` : `✅ Target Activated!\n\n👤 Name: ${name}\n🆔 UID: ${uid}\n⏱️ Time (PKT): ${getPKTTime()}`);
     
     const res = await sendTgRequest("sendPhoto", { chat_id: TG_CHAT_ID, caption }, { fieldName: 'photo', buffer, filename: 'ss.jpg' });
-    if(res) appendLog(`<span class="${isError ? 'text-red-400' : 'text-purple-400'}">📲 Image delivered securely.</span>`);
+    if(res) appendLog(`<span class="${isError ? 'text-red-400' : 'text-blue-400'}">📲 Image delivered securely.</span>`);
     return res;
 }
 
@@ -556,7 +545,7 @@ function startPremiumCycle(user_id_or_key, uid, name, expires_at, isNewLicenseSy
 }
 
 // ==========================================
-// ELEGANT PURPLE GRADIENT UI (REDESIGN)
+// ELEGANT iOS BLUE GRADIENT UI (REDESIGN)
 // ==========================================
 const uiHead = `
     <meta charset="UTF-8">
@@ -566,56 +555,50 @@ const uiHead = `
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-        
         :root { 
-            --bg-color: #0d0a1b; 
-            --text-color: #f8fafc; 
-            --glass-bg: rgba(25, 20, 45, 0.55); 
-            --panel-glow: rgba(139, 92, 246, 0.15); 
-            --input-bg: rgba(255, 255, 255, 0.04); 
-            --input-border: rgba(167, 139, 250, 0.2); 
-            --primary: #8b5cf6; /* Elegant Violet */
-            --secondary: #d946ef; /* Soft Fuchsia */
-            --accent: #a855f7; 
+            --bg-color: #000000; 
+            --text-color: #F2F2F7; 
+            --glass-bg: rgba(10, 10, 15, 0.65); 
+            --panel-glow: rgba(10, 132, 255, 0.25); 
+            --input-bg: rgba(255, 255, 255, 0.05); 
+            --input-border: rgba(10, 132, 255, 0.4); 
+            --primary: #0A84FF; /* iOS Blue */
+            --secondary: #5E5CE6; /* iOS Indigo */
+            --accent: #5AC8FA; /* iOS Light Blue */
         }
         body.light-mode { 
-            --bg-color: #f1f5f9; 
-            --text-color: #1e1b4b; 
-            --glass-bg: rgba(255, 255, 255, 0.7); 
-            --panel-glow: rgba(139, 92, 246, 0.1); 
-            --input-bg: rgba(139, 92, 246, 0.05); 
-            --input-border: rgba(139, 92, 246, 0.2); 
+            --bg-color: #F2F2F7; 
+            --text-color: #000000; 
+            --glass-bg: rgba(255, 255, 255, 0.75); 
+            --panel-glow: rgba(10, 132, 255, 0.15); 
+            --input-bg: rgba(10, 132, 255, 0.05); 
+            --input-border: rgba(10, 132, 255, 0.3); 
         }
         body { 
-            background: linear-gradient(135deg, var(--bg-color), #1a1625); 
+            background: var(--bg-color); 
             color: var(--text-color); 
-            font-family: 'Outfit', sans-serif; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             overflow-x: hidden; 
             transition: background 0.4s ease, color 0.4s ease; 
             -webkit-font-smoothing: antialiased;
         }
-        
-        .orb { position: fixed; border-radius: 50%; filter: blur(120px); opacity: 0.4; z-index: -1; pointer-events: none; }
-        .orb-blue { width: 50vw; height: 50vw; background: radial-gradient(circle, var(--primary) 0%, transparent 70%); top: -10%; left: -10%; }
-        .orb-purple { width: 40vw; height: 40vw; background: radial-gradient(circle, var(--secondary) 0%, transparent 70%); bottom: -10%; right: -10%; }
         
         .glass-panel { 
             background: var(--glass-bg); 
             backdrop-filter: blur(24px); 
             -webkit-backdrop-filter: blur(24px); 
             border: 1px solid var(--input-border); 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05); 
+            box-shadow: 0 0 25px var(--panel-glow), inset 0 0 10px rgba(10, 132, 255, 0.1); 
             border-radius: 24px; 
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s ease, border-color 0.4s ease; 
+            transition: all 0.4s ease; 
         }
         .glass-panel:hover {
-            box-shadow: 0 20px 45px rgba(0,0,0,0.3), 0 0 20px var(--panel-glow); 
-            border-color: rgba(167, 139, 250, 0.4);
+            box-shadow: 0 0 40px rgba(10, 132, 255, 0.5), inset 0 0 20px rgba(10, 132, 255, 0.2); 
+            border-color: rgba(10, 132, 255, 0.8);
         }
         
         .text-gradient { 
-            background: linear-gradient(135deg, #a78bfa, #f472b6); 
+            background: linear-gradient(135deg, var(--accent), var(--primary)); 
             -webkit-background-clip: text; 
             -webkit-text-fill-color: transparent; 
         }
@@ -635,14 +618,15 @@ const uiHead = `
         input:focus, select:focus { 
             border-color: var(--accent); 
             outline: none; 
-            background: rgba(255,255,255,0.08);
-            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2); 
+            background: rgba(255,255,255,0.1);
+            box-shadow: 0 0 15px rgba(10, 132, 255, 0.4); 
         }
         
         .menu-open { transform: translateX(0) !important; opacity: 1 !important; pointer-events: auto !important; }
         
         .btn-hover { 
             background: linear-gradient(135deg, var(--primary), var(--secondary));
+            box-shadow: 0 0 15px var(--panel-glow);
             transition: all 0.3s ease; 
             border-radius: 14px; 
             font-weight: 600; 
@@ -654,30 +638,55 @@ const uiHead = `
         }
         .btn-hover::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: left 0.5s; z-index: -1; }
         .btn-hover:hover::before { left: 100%; }
-        .btn-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4); }
+        .btn-hover:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(10, 132, 255, 0.6); }
         
         .progress-bar-container {
-            width: 100%; background-color: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; height: 6px; margin-top: 8px;
+            width: 100%; background-color: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; height: 6px; margin-top: 8px; box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
         }
         .progress-bar-fill {
-            height: 100%; background: linear-gradient(90deg, #a78bfa, #e879f9); border-radius: 10px; transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 10px rgba(167, 139, 250, 0.5);
+            height: 100%; background: linear-gradient(90deg, var(--accent), var(--primary)); border-radius: 10px; transition: width 1s ease; box-shadow: 0 0 10px rgba(10, 132, 255, 0.8);
         }
         
-        /* Modal Overlay Redesign */
         .modal-sheet {
-            background: linear-gradient(180deg, rgba(30, 25, 55, 0.95), rgba(15, 12, 25, 0.98));
+            background: rgba(15, 15, 20, 0.95);
             backdrop-filter: blur(30px);
-            border: 1px solid rgba(167, 139, 250, 0.2);
+            border: 1px solid rgba(10, 132, 255, 0.4);
             border-radius: 32px;
-            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            box-shadow: 0 0 50px rgba(10, 132, 255, 0.3);
         }
     </style>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             gsap.registerPlugin(ScrollTrigger);
-            gsap.to(".orb-blue", { x: 60, y: 30, duration: 15, repeat: -1, yoyo: true, ease: "sine.inOut" });
-            gsap.to(".orb-purple", { x: -60, y: -30, duration: 12, repeat: -1, yoyo: true, ease: "sine.inOut" });
             
+            // Background Particle System
+            const canvas = document.createElement('canvas');
+            canvas.id = 'particles-bg';
+            Object.assign(canvas.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', zIndex: '-1', pointerEvents: 'none' });
+            document.body.prepend(canvas);
+            const ctx = canvas.getContext('2d');
+            let pArray = [];
+            function initP() {
+                canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+                pArray = [];
+                for(let i=0; i< (canvas.width*canvas.height)/10000; i++){
+                    pArray.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, r: Math.random()*2+0.5, dx: (Math.random()-0.5)*0.5, dy: (Math.random()-0.5)*0.5 });
+                }
+            }
+            function animP() {
+                requestAnimationFrame(animP);
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                ctx.fillStyle = 'rgba(10, 132, 255, 0.6)';
+                ctx.shadowBlur = 10; ctx.shadowColor = '#0A84FF';
+                pArray.forEach(p => {
+                    p.x += p.dx; p.y += p.dy;
+                    if(p.x < 0 || p.x > canvas.width) p.dx *= -1;
+                    if(p.y < 0 || p.y > canvas.height) p.dy *= -1;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+                });
+            }
+            initP(); animP(); window.addEventListener('resize', initP);
+
             // Elegant fade up entry
             gsap.from(".animate-box", { 
                 y: 30, opacity: 0, duration: 0.8, 
@@ -729,12 +738,12 @@ const uiHead = `
             
             if(opts.type === 'confirm') {
                 btnContainer.innerHTML = \`<button class="px-6 py-3 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10 transition border border-white/10 font-medium" onclick="closeSysModal(false)">Cancel</button>
-                                          <button class="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white transition font-medium shadow-lg" onclick="closeSysModal(true)">Confirm</button>\`;
+                                          <button class="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white transition font-medium shadow-lg" onclick="closeSysModal(true)">Confirm</button>\`;
             } else if(opts.type === 'prompt') {
                 btnContainer.innerHTML = \`<button class="px-6 py-3 rounded-xl bg-white/5 text-gray-300 hover:bg-white/10 transition border border-white/10 font-medium" onclick="closeSysModal(null)">Cancel</button>
-                                          <button class="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white transition font-medium shadow-lg" onclick="closeSysModal(document.getElementById('sys-modal-input').value)">Save</button>\`;
+                                          <button class="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white transition font-medium shadow-lg" onclick="closeSysModal(document.getElementById('sys-modal-input').value)">Save</button>\`;
             } else {
-                btnContainer.innerHTML = \`<button class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white transition font-medium w-full shadow-lg" onclick="closeSysModal('ok')">Okay</button>\`;
+                btnContainer.innerHTML = \`<button class="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white transition font-medium w-full shadow-lg" onclick="closeSysModal('ok')">Okay</button>\`;
             }
             
             window.sysModalCallback = opts.cb || function(){};
@@ -757,13 +766,11 @@ const uiHead = `
         <div class="modal-sheet p-8 max-w-sm w-[90%] text-center" id="sys-modal-box">
             <h3 id="sys-modal-title" class="text-xl font-bold mb-2 text-gradient"></h3>
             <p id="sys-modal-msg" class="text-sm opacity-80 mb-6 leading-relaxed font-light"></p>
-            <input type="text" id="sys-modal-input" class="hidden w-full p-4 mb-6 text-center border focus:border-purple-400 transition rounded-xl bg-white/5 text-white" autocomplete="off" />
+            <input type="text" id="sys-modal-input" class="hidden w-full p-4 mb-6 text-center border focus:border-blue-400 transition rounded-xl bg-white/5 text-white" autocomplete="off" />
             <div class="flex gap-3 justify-center" id="sys-modal-btns"></div>
         </div>
     </div>
 `;
-
-const getOrbs = () => `<div class="orb orb-blue"></div><div class="orb orb-purple"></div>`;
 
 const getFloatingHeader = (title, isAdmin) => `
     <div class="fixed top-4 w-full flex justify-center z-[110] px-4 pointer-events-none">
@@ -785,22 +792,22 @@ const getFloatingHeader = (title, isAdmin) => `
         </div>
     </div>
     
-    <div id="overlay-menu" class="fixed top-0 right-0 h-full w-[280px] bg-gradient-to-b from-[#16122a] to-[#0f0c1b] border-l border-white/10 z-[100] transform translate-x-full opacity-0 pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col p-6 shadow-2xl">
+    <div id="overlay-menu" class="fixed top-0 right-0 h-full w-[280px] bg-gradient-to-b from-[#0a0a0f] to-[#000000] border-l border-white/10 z-[100] transform translate-x-full opacity-0 pointer-events-none transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col p-6 shadow-2xl">
         <div class="flex justify-between items-center mb-8 mt-20">
-            <h4 class="font-semibold text-xs uppercase tracking-widest text-purple-400 opacity-80">Navigation</h4>
+            <h4 class="font-semibold text-xs uppercase tracking-widest text-blue-400 opacity-80">Navigation</h4>
             <button onclick="document.getElementById('overlay-menu').classList.remove('menu-open')" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-sm opacity-70 hover:opacity-100 hover:bg-white/10 transition"><i class="fa-solid fa-xmark"></i></button>
         </div>
         
         <div class="flex flex-col gap-2 text-[15px] font-medium">
-            <a href="/" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-layer-group w-5 text-purple-400 text-center"></i> Network Matrix</a>
+            <a href="/" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-layer-group w-5 text-blue-400 text-center"></i> Network Matrix</a>
             
             ${isAdmin ? `
-            <a href="/admin" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-sliders w-5 text-fuchsia-400 text-center"></i> Dashboard</a>
+            <a href="/admin" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-sliders w-5 text-indigo-400 text-center"></i> Dashboard</a>
             <a href="/logs" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-server w-5 text-blue-400 text-center"></i> Server Logs</a>
             <a href="/server_settings" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-shield w-5 text-cyan-400 text-center"></i> Firewall</a>
             <a href="/stats" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-chart-pie w-5 text-teal-400 text-center"></i> Metrics</a>
             ` : `
-            <a href="/login" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-lock w-5 text-purple-400 text-center"></i> Admin Auth</a>
+            <a href="/login" class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition"><i class="fa-solid fa-lock w-5 text-blue-400 text-center"></i> Admin Auth</a>
             `}
             
             <div class="p-3.5 rounded-2xl hover:bg-white/5 flex items-center gap-4 transition cursor-pointer mt-4 border-t border-white/5" onclick="toggleTheme()">
@@ -876,16 +883,15 @@ app.get('/stats', (req, res) => {
         <!DOCTYPE html>
         <html lang="en"><head><title>System Metrics</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
-            ${getOrbs()}
             ${getFloatingHeader('System Metrics', true)}
             <div class="w-full max-w-5xl mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 animate-box">
                 <div class="glass-panel p-8 flex flex-col items-center text-center">
-                    <div class="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-5"><i class="fa-solid fa-microchip text-3xl text-purple-400"></i></div>
+                    <div class="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-5"><i class="fa-solid fa-microchip text-3xl text-blue-400"></i></div>
                     <h3 class="font-medium text-sm mb-2 opacity-60 uppercase tracking-widest">Processing Core</h3>
                     <p id="cpu-stat" class="font-medium text-[15px] opacity-90 animate-pulse">Scanning...</p>
                 </div>
                 <div class="glass-panel p-8 flex flex-col items-center text-center">
-                    <div class="w-16 h-16 rounded-2xl bg-fuchsia-500/10 flex items-center justify-center mb-5"><i class="fa-solid fa-memory text-3xl text-fuchsia-400"></i></div>
+                    <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-5"><i class="fa-solid fa-memory text-3xl text-indigo-400"></i></div>
                     <h3 class="font-medium text-sm mb-2 opacity-60 uppercase tracking-widest">Memory Allocation</h3>
                     <p id="ram-stat" class="font-medium text-[15px] opacity-90 animate-pulse">Scanning...</p>
                 </div>
@@ -933,13 +939,12 @@ app.get('/', (req, res) => {
         <!DOCTYPE html>
         <html lang="en"><head><title>Network Feed</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
-            ${getOrbs()}
             ${getFloatingHeader('Network Feed', isAdmin)}
             
             <div class="w-full max-w-5xl glass-panel animate-box p-6 md:p-8 mt-4">
                 <div class="flex items-center mb-8">
-                    <div class="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center mr-4 shadow-[0_0_15px_rgba(167,139,250,0.3)]">
-                        <span class="w-3 h-3 rounded-full bg-purple-400 animate-pulse"></span>
+                    <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center mr-4 shadow-[0_0_15px_rgba(10,132,255,0.3)]">
+                        <span class="w-3 h-3 rounded-full bg-blue-400 animate-pulse"></span>
                     </div>
                     <div>
                         <h3 class="font-semibold text-lg opacity-90 tracking-wide">Live Nodes</h3>
@@ -960,13 +965,13 @@ app.get('/', (req, res) => {
                 <div class="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-50">
                     <div class="flex items-center gap-3 bg-white/10 px-5 py-2.5 rounded-2xl border border-white/20 backdrop-blur-md shadow-lg">
                         <span class="w-2.5 h-2.5 bg-red-400 rounded-full animate-pulse shadow-[0_0_10px_red]"></span>
-                        <span class="text-sm font-medium tracking-wide">Streaming: <span id="modal-uid" class="text-purple-300 ml-1 font-mono"></span></span>
+                        <span class="text-sm font-medium tracking-wide">Streaming: <span id="modal-uid" class="text-blue-300 ml-1 font-mono"></span></span>
                     </div>
                     <button onclick="closePreview()" class="w-12 h-12 bg-white/10 hover:bg-white/20 rounded-2xl flex items-center justify-center text-xl transition-all z-50 border border-white/10 backdrop-blur-md">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
-                <div class="relative w-full max-w-[360px] h-[640px] max-h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-[#0f0c1b] flex items-center justify-center border border-white/10">
+                <div class="relative w-full max-w-[360px] h-[640px] max-h-[85vh] rounded-[32px] overflow-hidden shadow-2xl bg-[#000000] flex items-center justify-center border border-white/10">
                     <img id="live-screen" src="" class="absolute inset-0 w-full h-full object-cover hidden transition-opacity duration-300" />
                     <div id="no-signal" class="opacity-50 flex flex-col items-center z-10">
                         <i class="fa-solid fa-satellite-dish text-4xl mb-4 opacity-70"></i>
@@ -994,7 +999,7 @@ app.get('/', (req, res) => {
                         
                         if (isAdmin) {
                             previewBtn = info.isRunning 
-                                ? \`<button onclick="openPreview('\${uid}')" class="bg-purple-500/20 text-purple-300 border border-purple-500/30 w-11 h-11 rounded-2xl transition-all flex items-center justify-center mx-auto hover:bg-purple-500 hover:text-white shadow-sm"><i class="fa-solid fa-expand text-xs"></i></button>\`
+                                ? \`<button onclick="openPreview('\${uid}')" class="bg-blue-500/20 text-blue-300 border border-blue-500/30 w-11 h-11 rounded-2xl transition-all flex items-center justify-center mx-auto hover:bg-blue-500 hover:text-white shadow-sm"><i class="fa-solid fa-expand text-xs"></i></button>\`
                                 : \`<button class="bg-white/5 border border-white/10 opacity-60 w-11 h-11 rounded-2xl flex items-center justify-center mx-auto cursor-not-allowed"><i class="fa-solid fa-eye-slash text-xs"></i></button>\`;
                         }
 
@@ -1057,14 +1062,13 @@ app.get('/login', (req, res) => {
         <!DOCTYPE html>
         <html lang="en"><head><title>Admin Portal</title>${uiHead}</head>
         <body class="flex items-center justify-center min-h-screen relative">
-            ${getOrbs()}
             <div id="auth-panel" class="modal-sheet p-10 w-[90%] max-w-sm text-center z-10 transition-all duration-500">
-                <div class="w-20 h-20 bg-gradient-to-tr from-purple-500 to-fuchsia-500 rounded-[24px] mx-auto mb-6 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                <div class="w-20 h-20 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-[24px] mx-auto mb-6 flex items-center justify-center shadow-lg shadow-blue-500/20">
                     <i class="fa-solid fa-lock text-3xl text-white"></i>
                 </div>
                 <h2 class="text-xl font-semibold mb-8 tracking-wider uppercase opacity-90">Authentication</h2>
                 <form action="/login" method="POST" class="flex flex-col gap-4">
-                    <input type="password" name="password" placeholder="Passphrase" required class="w-full p-4 text-center tracking-widest bg-white/5 border-white/10 focus:border-purple-400 text-white"/>
+                    <input type="password" name="password" placeholder="Passphrase" required class="w-full p-4 text-center tracking-widest bg-white/5 border-white/10 focus:border-blue-400 text-white"/>
                     <button type="submit" class="btn-hover w-full p-4 uppercase tracking-widest text-sm mt-2">Unlock Gateway</button>
                 </form>
                 <div class="mt-8 text-xs font-medium opacity-50 cursor-pointer hover:opacity-100 transition uppercase tracking-widest" onclick="showForgot()">Recovery Options</div>
@@ -1072,15 +1076,15 @@ app.get('/login', (req, res) => {
 
             <div id="forgot-panel" class="modal-sheet p-10 w-[90%] max-w-sm text-center z-10 hidden absolute transition-all duration-500">
                 <div class="w-16 h-16 bg-white/5 border border-white/10 rounded-[20px] mx-auto mb-6 flex items-center justify-center">
-                    <i class="fa-solid fa-shield-halved text-2xl text-purple-400"></i>
+                    <i class="fa-solid fa-shield-halved text-2xl text-blue-400"></i>
                 </div>
                 <h2 class="text-lg font-semibold mb-3 tracking-wider uppercase opacity-90">Recovery Mode</h2>
                 <p class="text-[11px] opacity-60 mb-6 font-light">Secure OTP will be routed to Master Comms.</p>
                 
                 <button onclick="sendOTP()" id="otp-btn" class="w-full p-4 mb-4 rounded-xl font-semibold uppercase tracking-widest text-sm bg-white/10 hover:bg-white/20 transition border border-white/10">Request Code</button>
                 <form id="reset-form" class="hidden flex flex-col gap-4" onsubmit="event.preventDefault(); resetPass();">
-                    <input type="text" id="otp-code" placeholder="Enter OTP" required class="w-full p-4 text-center tracking-widest font-mono bg-white/5 border-white/10 focus:border-purple-400 text-white"/>
-                    <input type="password" id="new-pass" placeholder="New Passphrase" required class="w-full p-4 text-center tracking-widest bg-white/5 border-white/10 focus:border-purple-400 text-white"/>
+                    <input type="text" id="otp-code" placeholder="Enter OTP" required class="w-full p-4 text-center tracking-widest font-mono bg-white/5 border-white/10 focus:border-blue-400 text-white"/>
+                    <input type="password" id="new-pass" placeholder="New Passphrase" required class="w-full p-4 text-center tracking-widest bg-white/5 border-white/10 focus:border-blue-400 text-white"/>
                     <button type="submit" class="btn-hover w-full p-4 uppercase tracking-widest text-sm mt-2">Update Key</button>
                 </form>
                 <div class="mt-6 text-[11px] font-medium opacity-50 cursor-pointer hover:text-white hover:opacity-100 transition uppercase tracking-widest" onclick="hideForgot()"><i class="fa-solid fa-arrow-left mr-1"></i> Back to Login</div>
@@ -1165,7 +1169,7 @@ app.get('/admin', async (req, res) => {
     let usersHtml = '';
     if (users && users.length > 0) {
         users.forEach(u => {
-            let activeColor = u.auto_activate ? 'text-purple-300 border-purple-500/30 bg-purple-500/10' : 'text-gray-400 border-white/10 bg-white/5 opacity-70';
+            let activeColor = u.auto_activate ? 'text-blue-300 border-blue-500/30 bg-blue-500/10' : 'text-gray-400 border-white/10 bg-white/5 opacity-70';
             let activeIcon = u.auto_activate ? 'fa-toggle-on' : 'fa-toggle-off';
 
             usersHtml += `<div class="bg-white/5 border border-white/10 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 mb-3 transition hover:bg-white/10 group">
@@ -1173,7 +1177,7 @@ app.get('/admin', async (req, res) => {
                     <b class="text-[15px] font-medium opacity-90 text-white flex items-center justify-center md:justify-start"><div class="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center mr-2.5"><i class="fa-solid fa-layer-group text-[10px] opacity-70"></i></div> ${u.name}</b>
                     <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-3">
                         <span class="text-[11px] font-mono opacity-60 bg-black/30 px-2.5 py-1 rounded-lg border border-white/5"><i class="fa-solid fa-hashtag mr-1 opacity-50"></i>${u.uid}</span>
-                        <span class="text-[11px] font-medium opacity-80 bg-fuchsia-500/10 text-fuchsia-300 px-2.5 py-1 rounded-lg border border-fuchsia-500/20 cursor-pointer hover:bg-fuchsia-500/20 transition flex items-center" onclick="editTime('${u.uid}', ${u.interval_mins})">
+                        <span class="text-[11px] font-medium opacity-80 bg-indigo-500/10 text-indigo-300 px-2.5 py-1 rounded-lg border border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition flex items-center" onclick="editTime('${u.uid}', ${u.interval_mins})">
                             <i class="fa-regular fa-clock mr-1 opacity-70"></i>${u.interval_mins}m <i class="fa-solid fa-pen ml-2 opacity-50 text-[9px]"></i>
                         </span>
                     </div>
@@ -1191,7 +1195,7 @@ app.get('/admin', async (req, res) => {
         licenses.forEach(l => {
             const timeDiff = new Date(l.expires_at).getTime() - Date.now();
             const daysLeft = timeDiff > 0 ? (timeDiff / (1000 * 60 * 60 * 24)).toFixed(1) + 'd' : '<span class="text-red-400 font-medium">Expired</span>';
-            const bindInfo = l.ip_address ? `<span class="opacity-80 font-mono text-[10px] text-purple-300" title="${l.device_fingerprint}">${l.ip_address}</span>` : '<span class="opacity-40 text-[10px]">Unbound</span>';
+            const bindInfo = l.ip_address ? `<span class="opacity-80 font-mono text-[10px] text-blue-300" title="${l.device_fingerprint}">${l.ip_address}</span>` : '<span class="opacity-40 text-[10px]">Unbound</span>';
             licensesHtml += `<div class="bg-white/5 border border-white/10 p-4.5 rounded-2xl flex flex-col gap-3 mb-3 hover:bg-white/10 transition group">
                 <div class="flex justify-between items-center"><b class="font-mono text-[13px] opacity-90 tracking-wide">${l.license_key}</b> <span class="uppercase text-[9px] font-semibold bg-white/10 text-white px-2.5 py-1 rounded-md opacity-80 border border-white/5">${l.plan_type}</span></div>
                 <div class="flex justify-between text-[11px] opacity-60 font-light"><span>Remaining: ${daysLeft}</span> <span>IP: ${bindInfo}</span></div>
@@ -1207,7 +1211,6 @@ app.get('/admin', async (req, res) => {
         <!DOCTYPE html>
         <html lang="en"><head><title>Dashboard</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
-            ${getOrbs()}
             ${getFloatingHeader('Control Center', true)}
             
             <div class="w-full max-w-7xl mt-4">
@@ -1220,24 +1223,24 @@ app.get('/admin', async (req, res) => {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="flex flex-col gap-6">
                         <div class="glass-panel animate-box p-7 h-fit relative overflow-hidden">
-                            <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
-                            <h3 class="text-sm font-semibold mb-5 uppercase tracking-widest opacity-90 flex items-center"><div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center mr-3"><i class="fa-solid fa-plus text-purple-300 text-[10px]"></i></div> Deploy Node</h3>
-                            <input type="text" id="name" placeholder="Alias Name" class="w-full p-3.5 mb-3 text-center outline-none bg-black/20 border border-white/10 text-sm rounded-xl focus:border-purple-400" />
-                            <input type="text" id="uid" placeholder="Target UID" class="w-full p-3.5 mb-3 font-mono text-center outline-none bg-black/20 border border-white/10 text-sm rounded-xl focus:border-purple-400" />
-                            <input type="number" id="interval" placeholder="Interval (Mins) [Def:40]" class="w-full p-3.5 mb-5 font-mono text-center outline-none bg-black/20 border border-white/10 text-sm rounded-xl focus:border-purple-400" />
+                            <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl"></div>
+                            <h3 class="text-sm font-semibold mb-5 uppercase tracking-widest opacity-90 flex items-center"><div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center mr-3"><i class="fa-solid fa-plus text-blue-300 text-[10px]"></i></div> Deploy Node</h3>
+                            <input type="text" id="name" placeholder="Alias Name" class="w-full p-3.5 mb-3 text-center outline-none bg-black/20 border border-white/10 text-sm rounded-xl focus:border-blue-400" />
+                            <input type="text" id="uid" placeholder="Target UID" class="w-full p-3.5 mb-3 font-mono text-center outline-none bg-black/20 border border-white/10 text-sm rounded-xl focus:border-blue-400" />
+                            <input type="number" id="interval" placeholder="Interval (Mins) [Def:40]" class="w-full p-3.5 mb-5 font-mono text-center outline-none bg-black/20 border border-white/10 text-sm rounded-xl focus:border-blue-400" />
                             <button onclick="addUser()" class="btn-hover w-full p-3.5 font-semibold uppercase tracking-widest text-sm"><i class="fa-solid fa-rocket mr-2"></i> Launch</button>
                         </div>
                         
                         <div class="glass-panel animate-box p-7 h-fit relative overflow-hidden">
-                            <div class="absolute bottom-0 left-0 w-32 h-32 bg-fuchsia-500/10 rounded-full blur-3xl"></div>
-                            <h3 class="text-sm font-semibold mb-5 uppercase tracking-widest opacity-90 flex items-center"><div class="w-8 h-8 rounded-lg bg-fuchsia-500/20 flex items-center justify-center mr-3"><i class="fa-solid fa-certificate text-fuchsia-300 text-[10px]"></i></div> Gen License</h3>
-                            <select id="plan_type" class="w-full p-3.5 mb-3 text-center font-medium outline-none border border-white/10 bg-black/20 text-sm rounded-xl focus:border-fuchsia-400">
-                                <option value="trial" class="bg-[#1a1625]">Trial (1 Day)</option>
-                                <option value="weekly" class="bg-[#1a1625]">Weekly (7 Days)</option>
-                                <option value="monthly" class="bg-[#1a1625]">Monthly (30 Days)</option>
-                                <option value="superuser" class="bg-[#1a1625] text-purple-400">Super User (10 UIDs)</option>
+                            <div class="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl"></div>
+                            <h3 class="text-sm font-semibold mb-5 uppercase tracking-widest opacity-90 flex items-center"><div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center mr-3"><i class="fa-solid fa-certificate text-indigo-300 text-[10px]"></i></div> Gen License</h3>
+                            <select id="plan_type" class="w-full p-3.5 mb-3 text-center font-medium outline-none border border-white/10 bg-black/20 text-sm rounded-xl focus:border-indigo-400">
+                                <option value="trial" class="bg-[#101018]">Trial (1 Day)</option>
+                                <option value="weekly" class="bg-[#101018]">Weekly (7 Days)</option>
+                                <option value="monthly" class="bg-[#101018]">Monthly (30 Days)</option>
+                                <option value="superuser" class="bg-[#101018] text-blue-400">Super User (10 UIDs)</option>
                             </select>
-                            <input type="number" step="0.1" id="plan_days" placeholder="Custom Days Override" class="w-full p-3.5 mb-5 font-mono text-center outline-none border border-white/10 bg-black/20 text-sm rounded-xl focus:border-fuchsia-400" />
+                            <input type="number" step="0.1" id="plan_days" placeholder="Custom Days Override" class="w-full p-3.5 mb-5 font-mono text-center outline-none border border-white/10 bg-black/20 text-sm rounded-xl focus:border-indigo-400" />
                             <button onclick="genLicense()" class="btn-hover w-full p-3.5 font-semibold uppercase tracking-widest text-sm"><i class="fa-solid fa-key mr-2 opacity-80"></i> Issue Key</button>
                         </div>
                     </div>
@@ -1366,7 +1369,6 @@ app.get('/server_settings', (req, res) => {
         <!DOCTYPE html>
         <html lang="en"><head><title>Firewall</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
-            ${getOrbs()}
             ${getFloatingHeader('Firewall Config', true)}
             
             <div class="w-full max-w-7xl mt-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1378,13 +1380,13 @@ app.get('/server_settings', (req, res) => {
                             <div class="font-medium text-sm tracking-wide">Allow All Origins (*)</div>
                             <div class="text-[10px] opacity-60 font-light mt-1">Warning: Disabling this restricts external API access.</div>
                         </div>
-                        <button id="cors-toggle" onclick="toggleCors()" class="px-5 py-2.5 rounded-xl font-medium text-xs transition ${ALLOW_ALL_CORS ? 'bg-purple-500 text-white shadow-lg' : 'bg-white/10 text-gray-400 hover:bg-white/20'}">
+                        <button id="cors-toggle" onclick="toggleCors()" class="px-5 py-2.5 rounded-xl font-medium text-xs transition ${ALLOW_ALL_CORS ? 'bg-blue-500 text-white shadow-lg' : 'bg-white/10 text-gray-400 hover:bg-white/20'}">
                             ${ALLOW_ALL_CORS ? 'Active' : 'Blocked'}
                         </button>
                     </div>
 
                     <div class="flex gap-3 mb-5">
-                        <input type="text" id="new-cors-url" placeholder="https://domain.com" class="flex-1 p-3.5 rounded-xl font-mono text-[13px] outline-none bg-black/20 border border-white/10 focus:border-purple-400" />
+                        <input type="text" id="new-cors-url" placeholder="https://domain.com" class="flex-1 p-3.5 rounded-xl font-mono text-[13px] outline-none bg-black/20 border border-white/10 focus:border-blue-400" />
                         <button onclick="addCorsUrl()" class="px-6 bg-white/10 hover:bg-white/20 font-medium rounded-xl text-sm transition border border-white/5"><i class="fa-solid fa-plus mr-1 opacity-70"></i> Add</button>
                     </div>
 
@@ -1444,7 +1446,7 @@ app.get('/server_settings', (req, res) => {
                     if(data.logs.length === 0) return container.innerHTML = '<div class="text-center opacity-40 py-12 text-sm font-light">No traffic detected.</div>';
                     
                     container.innerHTML = data.logs.map(log => {
-                        const statusColor = log.status >= 400 ? 'text-red-400' : 'text-purple-400';
+                        const statusColor = log.status >= 400 ? 'text-red-400' : 'text-blue-400';
                         return \`<div class="bg-black/20 p-4 rounded-xl border border-white/5 hover:bg-white/5 transition">
                             <div class="flex justify-between mb-3 border-b border-white/5 pb-3">
                                 <span class="font-medium opacity-90 tracking-wide">\${log.method} <span class="opacity-60 font-mono ml-2 font-normal text-[11px]">\${log.url}</span></span>
@@ -1501,7 +1503,6 @@ app.get('/logs', (req, res) => {
         <!DOCTYPE html>
         <html lang="en"><head><title>System Logs</title>${uiHead}</head>
         <body class="min-h-screen pt-28 p-4 flex flex-col items-center">
-            ${getOrbs()}
             ${getFloatingHeader('System Logs', true)}
             
             <div class="w-full max-w-7xl mt-4">
@@ -1553,13 +1554,13 @@ app.get('/logs', (req, res) => {
                     grid.innerHTML = '';
                     for(let uid in matrix) {
                         matrix[uid].forEach(snap => {
-                            let isErr = snap.isError ? 'border-red-400/30 bg-red-500/5' : 'border-white/10 bg-black/20 hover:border-purple-400/50';
+                            let isErr = snap.isError ? 'border-red-400/30 bg-red-500/5' : 'border-white/10 bg-black/20 hover:border-blue-400/50';
                             let titleCol = snap.isError ? 'text-red-400 font-medium' : 'opacity-70 font-medium';
                             grid.innerHTML += \`<div class="rounded-2xl p-3.5 border \${isErr} cursor-pointer transition-all duration-300 hover:-translate-y-1 group" onclick="showImg('data:image/jpeg;base64,\${snap.img}')">
-                                <div class="text-[11px] font-semibold tracking-wide truncate mb-1 opacity-90 group-hover:text-purple-300 transition-colors">\${uid}</div>
+                                <div class="text-[11px] font-semibold tracking-wide truncate mb-1 opacity-90 group-hover:text-blue-300 transition-colors">\${uid}</div>
                                 <div class="text-[9px] \${titleCol} truncate mb-3 font-mono">\${snap.step} | \${snap.time}</div>
                                 <div class="relative overflow-hidden rounded-xl border border-white/5">
-                                    <div class="absolute inset-0 bg-purple-500/10 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                    <div class="absolute inset-0 bg-blue-500/10 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                     <img src="data:image/jpeg;base64,\${snap.img}" class="w-full aspect-[9/16] object-cover" />
                                 </div>
                             </div>\`;
@@ -1606,16 +1607,16 @@ setInterval(() => {
         let percent = Math.max(0, Math.min(100, ((totalMs - diff) / totalMs) * 100));
 
         if(timerObj.isSub) {
-            if (isRunning) remainingStr = '<span class="text-purple-400 font-semibold tracking-wide flex items-center text-xs"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Executing</span>';
+            if (isRunning) remainingStr = '<span class="text-blue-400 font-semibold tracking-wide flex items-center text-xs"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Executing</span>';
             else {
                 if(diff > 0) remainingStr = '<span class="opacity-80 font-medium text-[13px] tracking-wide"><i class="fa-regular fa-clock mr-1.5 opacity-70"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
-                else remainingStr = '<span class="text-fuchsia-400 font-medium text-xs tracking-wide animate-pulse">Booting...</span>';
+                else remainingStr = '<span class="text-indigo-400 font-medium text-xs tracking-wide animate-pulse">Booting...</span>';
             }
         } else {
             if(!timerObj.autoActivate) remainingStr = '<span class="text-red-400 font-medium text-xs tracking-wide"><i class="fa-solid fa-pause mr-1.5 opacity-70"></i> Paused</span>';
-            else if (isRunning) remainingStr = '<span class="text-purple-400 font-semibold tracking-wide flex items-center text-xs"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Executing</span>';
+            else if (isRunning) remainingStr = '<span class="text-blue-400 font-semibold tracking-wide flex items-center text-xs"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>Executing</span>';
             else if (diff > 0) remainingStr = '<span class="opacity-80 font-medium text-[13px] tracking-wide"><i class="fa-regular fa-clock mr-1.5 opacity-70"></i> ' + Math.floor(diff/60000) + 'm ' + Math.floor((diff%60000)/1000) + 's</span>';
-            else remainingStr = '<span class="text-fuchsia-400 font-medium text-xs tracking-wide animate-pulse">Booting...</span>';
+            else remainingStr = '<span class="text-indigo-400 font-medium text-xs tracking-wide animate-pulse">Booting...</span>';
         }
         
         uiData[uid] = { name: timerObj.name, remaining: remainingStr, isRunning, autoActivate: timerObj.autoActivate !== false, percent: percent };
@@ -1692,7 +1693,7 @@ async function executeEngineWithRetry(uid, forcedName = null) {
     while (attempt < maxRetries && !success) {
         attempt++;
         try {
-            if(attempt > 1) appendLog(`<span class="text-purple-300 font-medium"><i class="fa-solid fa-rotate-right mr-1.5 opacity-70"></i> Auto-Restarting execution (Attempt ${attempt}/${maxRetries})...</span>`);
+            if(attempt > 1) appendLog(`<span class="text-blue-300 font-medium"><i class="fa-solid fa-rotate-right mr-1.5 opacity-70"></i> Auto-Restarting execution (Attempt ${attempt}/${maxRetries})...</span>`);
             await runGhostActivator(uid, name);
             success = true; 
         } catch (error) {
@@ -1706,10 +1707,10 @@ async function executeEngineWithRetry(uid, forcedName = null) {
     }
 
     if(target && !target.isSub && target.autoActivate) {
-        appendLog(`<span class="opacity-70 font-medium text-purple-300"><i class="fa-solid fa-hourglass-start mr-1.5 opacity-50"></i> Auto-Resume scheduled after ${target.intervalMins} mins...</span>`);
+        appendLog(`<span class="opacity-70 font-medium text-blue-300"><i class="fa-solid fa-hourglass-start mr-1.5 opacity-50"></i> Auto-Resume scheduled after ${target.intervalMins} mins...</span>`);
         scheduleNextRun(uid);
     } else if(target && target.isSub) {
-        appendLog(`<span class="opacity-70 font-medium text-purple-300"><i class="fa-solid fa-hourglass-start mr-1.5 opacity-50"></i> Sub-Resume scheduled after ${target.intervalMins} mins...</span>`);
+        appendLog(`<span class="opacity-70 font-medium text-blue-300"><i class="fa-solid fa-hourglass-start mr-1.5 opacity-50"></i> Sub-Resume scheduled after ${target.intervalMins} mins...</span>`);
         scheduleNextRun(uid);
     }
 }
@@ -1741,7 +1742,7 @@ setTimeout(async () => {
     try {
         const { data: users } = await supabase.from('targets').select('*');
         if (users && users.length > 0) {
-            appendLog('<span class="text-purple-300 opacity-90 font-medium"><i class="fa-solid fa-database mr-1.5 opacity-70"></i> Restoring Database Systems...</span>');
+            appendLog('<span class="text-blue-300 opacity-90 font-medium"><i class="fa-solid fa-database mr-1.5 opacity-70"></i> Restoring Database Systems...</span>');
             users.forEach((u, index) => {
                 setTimeout(() => startUIDCycle(u.uid, u.name, u.interval_mins, u.auto_activate, u.auto_activate, false), index * 10000);
             });
@@ -1779,7 +1780,7 @@ async function runGhostActivator(uid, name) {
     fs.writeFileSync(dumpLogFile, `=== DEEP DUMP FOR ${uid} (PAYLOADS & COOKIES) ===\n\n`);
 
     const sysLog = (msg) => {
-        appendLog(`<b class="opacity-90 text-purple-300">[${uid}]</b> ${msg}`); 
+        appendLog(`<b class="opacity-90 text-blue-300">[${uid}]</b> ${msg}`); 
         fs.appendFileSync(actionLogFile, `[${getPKTTime()}] ${msg.replace(/<[^>]*>?/gm, '')}\n`);
     };
     const netLog = (msg) => {
@@ -1788,7 +1789,7 @@ async function runGhostActivator(uid, name) {
     };
 
     try {
-        sysLog('<i class="fa-solid fa-rocket text-purple-400 mr-1"></i> Engine Booting...'); 
+        sysLog('<i class="fa-solid fa-rocket text-blue-400 mr-1"></i> Engine Booting...'); 
         
         try {
             await sendTgRequest("sendSticker", { chat_id: TG_CHAT_ID, sticker: TG_LIVE_STICKER_ID });
@@ -1803,7 +1804,16 @@ async function runGhostActivator(uid, name) {
         }
 
         browser = await puppeteer.launch({
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage', '--window-size=360,640'],
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox', 
+                '--disable-blink-features=AutomationControlled', 
+                '--disable-dev-shm-usage', 
+                '--window-size=360,640',
+                '--single-process', // <-- FIX: Handles "Resource temporarily unavailable" PID limit issue
+                '--no-zygote',      // <-- FIX: Reduces background forking load
+                '--disable-gpu'
+            ],
             headless: 'new',
             executablePath: execPath 
         });
@@ -1884,7 +1894,7 @@ async function runGhostActivator(uid, name) {
 
             if(rType === 'xhr' || rType === 'fetch' || rType === 'document') {
                 if(!['google-analytics', 'doubleclick', 'facebook', 'bing'].some(j => urlStr.includes(j))) {
-                    let statusColor = status >= 400 ? 'text-red-400' : (status >= 300 ? 'text-yellow-300' : 'text-purple-300');
+                    let statusColor = status >= 400 ? 'text-red-400' : (status >= 300 ? 'text-yellow-300' : 'text-blue-300');
                     let icon = status >= 400 ? 'fa-xmark' : 'fa-check';
                     netLog(`<div class="bg-white/5 p-2 rounded-lg mb-1 border-l-2 border-white/10"><span class="${statusColor} font-mono mr-2"><i class="fa-solid ${icon} text-[10px] opacity-70"></i> ${status}</span> <span class="opacity-70">${urlStr.substring(0,60)}...</span></div>`);
                 }
@@ -1938,7 +1948,7 @@ async function runGhostActivator(uid, name) {
             });
 
             if (isInitializing) {
-                sysLog('<i class="fa-solid fa-circle-notch fa-spin text-fuchsia-400 mr-1"></i> Initializing Spinner Detected... Waiting [▓▓▓▓▓▓▓░░░] 70%');
+                sysLog('<i class="fa-solid fa-circle-notch fa-spin text-indigo-400 mr-1"></i> Initializing Spinner Detected... Waiting [▓▓▓▓▓▓▓░░░] 70%');
                 await saveMatrixScreen("WAITING_INITIALIZATION");
                 await new Promise(r => setTimeout(r, 2000));
                 continue; 
@@ -1973,7 +1983,7 @@ async function runGhostActivator(uid, name) {
             });
 
             if (resultData.success) {
-                sysLog('<span class="text-purple-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i> ✅ Activation Successful! [██████████] 100%</span>');
+                sysLog('<span class="text-blue-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i> ✅ Activation Successful! [██████████] 100%</span>');
                 await saveMatrixScreen("SUCCESS_VERIFIED");
 
                 let extractedMs = (resultData.h * 60 * 60 * 1000) + (resultData.m * 60 * 1000) + (resultData.s * 1000);
@@ -2062,7 +2072,7 @@ async function runGhostActivator(uid, name) {
                 }, uid);
                 if (injected) { 
                     uidInjected = true; 
-                    sysLog('<i class="fa-solid fa-keyboard text-fuchsia-400 mr-1"></i> UID typed successfully. [▓▓▓▓▓░░░░░] 50%');
+                    sysLog('<i class="fa-solid fa-keyboard text-indigo-400 mr-1"></i> UID typed successfully. [▓▓▓▓▓░░░░░] 50%');
                     await saveMatrixScreen("UID_TYPED");
                     await new Promise(r => setTimeout(r, 1000)); 
                 }
@@ -2099,7 +2109,7 @@ async function runGhostActivator(uid, name) {
             });
 
             if (clicked) {
-                sysLog(`<i class="fa-solid fa-hand-pointer text-purple-300 mr-1"></i> Action Performed: "${clicked}"`);
+                sysLog(`<i class="fa-solid fa-hand-pointer text-blue-300 mr-1"></i> Action Performed: "${clicked}"`);
                 await saveMatrixScreen("ACTION_CLICKED");
                 await new Promise(r => setTimeout(r, 2000));
             } else {
